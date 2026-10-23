@@ -28,9 +28,19 @@ class LightCraftUITestCase: XCTestCase {
         XCUIDevice.shared.appearance = dark ? .dark : .light
         app = XCUIApplication()
         app.launchArguments = args + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launch()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 60), "The app did not launch")
-        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60), "The app has no window")
+        // A loaded machine can take minutes to bring the app up, and the accessibility server can be missing
+        // right after launch (kAXErrorServerNotFound), so wait long and relaunch once before failing.
+        for attempt in 1...2 {
+            app.launch()
+            let foreground = app.wait(for: .runningForeground, timeout: 300)
+            if foreground && app.descendants(matching: .any)["demoReady"].waitForExistence(timeout: 1) { return }
+            if foreground && app.windows.firstMatch.waitForExistence(timeout: 180) { return }
+            let state = app.state.rawValue
+            print("LAUNCH attempt \(attempt) failed: foreground=\(foreground) state=\(state)")
+            notes.append("launch attempt \(attempt): foreground=\(foreground), state=\(state), no window")
+            app.terminate()
+        }
+        XCTFail("The app did not launch with a window after 2 attempts (see notes)")
     }
 
     /// The Photos state the runner set up (`LC_EXPECT_PHOTOS`, forwarded by `TEST_RUNNER_LC_EXPECT_PHOTOS`);

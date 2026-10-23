@@ -183,7 +183,7 @@ for device in "${DEVICES[@]}"; do        # iPad first, iPhone second
     xcrun simctl terminate "$D" "$BUNDLE" 2>/dev/null || true
     if ! env TEST_RUNNER_LC_EXPECT_PHOTOS="$expect" TEST_RUNNER_LC_NO_SCREENSHOTS="$noshots" \
         xcodebuild test-without-building -scheme LightCraft -destination "id=$D" -derivedDataPath "$DD" \
-        -test-timeouts-enabled YES -maximum-test-execution-time-allowance 900 \
+        -test-timeouts-enabled YES -maximum-test-execution-time-allowance 1800 \
         -resultBundlePath "$OUT/$name.xcresult" -only-testing:"$t" > "$OUT/$name.log" 2>&1; then
       STATUS=1; echo "     FAILED (see $OUT/$name.log)"
     fi
