@@ -15,8 +15,8 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   bridge or Swift and note it for upstream.
 - Every UI action = an engine command by id. Menus, palette and parameter forms are generated from the engine catalog;
   hand-write only when the generic one is not good enough.
-- Don't commit until it builds and runs on a simulator, unless the user asks earlier. After that, commit only when
-  asked; when asked, commit to `main`, push to `origin` with `[skip ci]` in every message (no CI/CD runs; any workflow
+- Commit and push regularly: after every meaningful chunk (an agent's finished work, a build attempt, before going
+  idle), marking unbuilt work "WIP". Commit to `main`, push to `origin` with `[skip ci]` in every message (no CI/CD runs; any workflow
   is `workflow_dispatch` only), using the git protocol the user's GitHub auth is set up for. Never commit build output
   (`apple/.gitignore`: `target/`, derived data, `.xcresult`, xcframeworks, generated `.xcodeproj`).
 - Work unattended: if a tool needs a permission click (e.g. a simulator panel), switch to a route that doesn't
