@@ -1,0 +1,18 @@
+# id<TAB>reason. Commands that cannot work on iOS/iPadOS. Be conservative: only what truly cannot work.
+app.quit	iOS apps do not quit themselves
+app.showInFinder	no Finder on iOS
+app.showInFolders	no file manager to reveal a file in; the library is a Files package
+app.openLogFolder	no user-visible log folder on iOS
+app.openSamModelFolder	no user-visible model folder on iOS
+app.newLibrary	libraries are documents: New Document in the launch scene
+app.openLibrary	libraries are documents: opened from the launch scene or Files
+app.recentLibraries	the document browser lists recent libraries
+app.clearRecentLibraries	the document browser lists recent libraries
+app.displayProfile	no per-display ICC profile selection on iOS
+file.backupLibrary	the library is a Files package: back it up with iCloud or Files
+file.restoreLibrary	the library is a Files package: restore it with iCloud or Files
+file.addFromDevice	no mounted cameras or cards (DCIM volumes) on iOS: use Photos or Files import
+library.devices	no mounted cameras or cards (DCIM volumes) on iOS
+photo.editExternal	no external editors on iOS
+export.addToPhotos	drives the Photos app via osascript (macOS only): use the share sheet
+export.photosImports	drives the Photos app via osascript (macOS only)

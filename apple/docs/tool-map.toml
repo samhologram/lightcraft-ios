@@ -1,0 +1,44 @@
+# Desktop panel.* and tool.* UI commands (crates/ui-egui/src/menus.rs UI_COMMANDS) -> where the iOS app has them.
+# Checked by scripts/tool-coverage.sh: every desktop panel.* / tool.* id needs an entry with `ios` or `excluded`.
+
+[panel.edit]
+ios = "Inspector > Edit (iPad), tool strip > Edit (iPhone)"
+[panel.profiles]
+ios = "Inspector > Profiles (iPad), tool strip > Profiles (iPhone)"
+[panel.crop]
+ios = "Inspector > Crop (iPad), tool strip > Crop (iPhone); crop overlay on the loupe"
+[panel.remove]
+ios = "Inspector > Remove (iPad), tool strip > Remove (iPhone)"
+[panel.masking]
+ios = "Inspector > Masking (iPad), tool strip > Masking (iPhone)"
+[panel.redeye]
+ios = "Inspector > Red Eye (iPad), tool strip > Red Eye (iPhone)"
+[panel.presets]
+ios = "Inspector > Presets (iPad), tool strip > Presets (iPhone)"
+[panel.info]
+ios = "Inspector > Info (iPad), sheet (iPhone)"
+[panel.keywords]
+ios = "Inspector > Keywords (iPad), sheet (iPhone)"
+[panel.versions]
+ios = "Inspector > Versions (iPad), sheet (iPhone)"
+[panel.activity]
+ios = "Inspector > History / Activity (iPad), sheet (iPhone)"
+[panel.close]
+ios = "Inspector close button / sheet dismiss"
+
+[tool.brush]
+ios = "Masking tool strip > Brush; Apple Pencil on the loupe"
+[tool.linear]
+ios = "Masking tool strip > Linear Gradient"
+[tool.radial]
+ios = "Masking tool strip > Radial Gradient"
+[tool.wbPicker]
+ios = "Edit panel > White Balance eyedropper (tap the loupe)"
+[tool.guidedUpright]
+ios = "Crop panel > Guided Upright (draw guides on the loupe)"
+[tool.none]
+ios = "Tool strip: tapping the active tool again, or Done"
+[tool.done]
+ios = "Done button on the options bar"
+[tool.keywordPainter]
+excluded = "Keyword Painter paints keywords by clicking photos with a held mouse tool; use multi-select + Keywords panel on touch"

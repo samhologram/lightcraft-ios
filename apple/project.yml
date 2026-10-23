@@ -1,0 +1,121 @@
+# XcodeGen spec. Generate with: cd apple && xcodegen generate   (LightCraft.xcodeproj is gitignored)
+name: LightCraft
+options:
+  bundleIdPrefix: ca.hologram
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    MARKETING_VERSION: "$(LIGHTCRAFT_MARKETING_VERSION)"
+    LIGHTCRAFT_MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SUPPORTS_MACCATALYST: NO
+    DEVELOPMENT_TEAM: ""
+packages:
+  LightCraftKit:
+    path: LightCraftKit
+targets:
+  LightCraft:
+    type: application
+    platform: iOS
+    sources:
+      - path: LightCraft
+        excludes:
+          - "**/.DS_Store"
+          - "**/*.entitlements"
+    dependencies:
+      - package: LightCraftKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.hologram.lightcraft
+        PRODUCT_NAME: LightCraft
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        GENERATE_INFOPLIST_FILE: NO
+    preBuildScripts:
+      - name: Check LightCraftBridge.xcframework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ ! -d "${SRCROOT}/LightCraftKit/LightCraftBridge.xcframework" ] || [ ! -f "${SRCROOT}/LightCraftKit/Sources/LightCraftKit/lightcraft_apple.swift" ]; then
+            echo "error: LightCraftBridge.xcframework (or generated lightcraft_apple.swift) is missing: run apple/scripts/build-xcframework.sh"
+            exit 1
+          fi
+    info:
+      path: build/Info/LightCraft-Info.plist
+      properties:
+        CFBundleDisplayName: LightCraft
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen:
+          UIImageRespectsSafeAreaInsets: false
+        UISupportsDocumentBrowser: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        UIRequiresFullScreen: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSPhotoLibraryUsageDescription: LightCraft imports photos from your photo library into your LightCraft library.
+        NSPhotoLibraryAddUsageDescription: LightCraft saves your exported photos to your photo library.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: LightCraft Library
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [ca.hologram.lightcraft.library]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: ca.hologram.lightcraft.library
+            UTTypeDescription: LightCraft Library
+            UTTypeConformsTo: [com.apple.package]
+            UTTypeTagSpecification:
+              public.filename-extension: [lightcraftlibrary]
+  LightCraftTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LightCraftTests
+    dependencies:
+      - target: LightCraft
+      - package: LightCraftKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.hologram.lightcraft.tests
+        GENERATE_INFOPLIST_FILE: YES
+  LightCraftUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: LightCraftUITests
+    dependencies:
+      - target: LightCraft
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.hologram.lightcraft.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: LightCraft
+schemes:
+  LightCraft:
+    build:
+      targets:
+        LightCraft: all
+        LightCraftTests: [test]
+        LightCraftUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [LightCraftTests, LightCraftUITests]
