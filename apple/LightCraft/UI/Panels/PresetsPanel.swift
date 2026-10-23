@@ -49,6 +49,13 @@ struct PresetsPanel: View {
                 .buttonStyle(.glass)
                 .disabled(model.activePhoto == nil)
                 .accessibilityIdentifier("command.preset.create")
+                Button {
+                    model.runUI("file.importPresets")
+                } label: {
+                    Label("Import Presets…", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("command.file.importPresets")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -97,6 +104,7 @@ struct PresetsPanel: View {
             }
         }
         .onChange(of: model.state.revision, initial: true) { _, _ in reload() }
+        .onChange(of: model.presetImportTick) { _, _ in reload() }
     }
 
     private func reload() {

@@ -1,0 +1,18 @@
+ipad-landscape-panels tour summary
+items: 11  reached: 10  not-reached: 1
+not-reached by cause: engine-refused=1
+
+REACHED      panel.edit  slide control.light.exposure '0.45' -> '2.73'; tap command.develop.auto
+REACHED      panel.profiles  tap profile.lc.color
+REACHED      panel.crop  tap crop.aspect.original; tap command.crop.autoStraighten; tap command.photo.rotateLeft; tap command.crop.reset
+NOT-REACHED  panel.remove  [engine-refused] tap command.spot.findDust; tap command.spot.findBlemishes; ALERTS=Something went wrong | Something went wrong | LightCraftKit.BridgeError.Failed(message: "invalid parameters for `spot.findBlemishes`: this build has nowhere to keep face models (the desktop app does)")
+REACHED      panel.masking  tap command.mask.add.subject
+REACHED      panel.redeye  tap command.redeye.add
+REACHED      panel.presets  tap preset.lc.warm-glow; tap command.preset.create; sheet filled-text run
+REACHED      panel.info  tap info.allMetadata; type info.title
+REACHED      panel.keywords  type keywords.entry
+REACHED      panel.versions  tap command.version.create
+REACHED      panel.activity  tap command.edit.redo; skipped: history.(missing-identifier)
+
+notes:
+panel.remove: alert: Something went wrong | Something went wrong | LightCraftKit.BridgeError.Failed(message: "invalid parameters for `spot.findBlemishes`: this build has nowhere to keep face models (the desktop app does)")

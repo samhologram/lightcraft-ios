@@ -9,7 +9,7 @@ engine catalog command), `mapped` = `docs/tool-map.toml`, `excluded` = cannot wo
 | Group | Total | swift+menu | swift | menu | mapped | excluded | not reached |
 |---|---|---|---|---|---|---|---|
 | Engine commands with a menu path | 73 | 24 | 0 | 49 | 0 | 0 | 0 |
-| Desktop UI commands | 186 | 18 | 3 | 94 | 19 | 14 | 38 |
+| Desktop UI commands | 186 | 19 | 3 | 93 | 19 | 14 | 38 |
 
 Engine commands in total: 370; without a menu path (palette only): 297.
 
@@ -166,7 +166,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `file.importCurvePresets` | Import Point Curve Presets… |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `file.importKeywords` | Import Keywords… | File | menu | generated menu / command palette |
 | `file.importLightroom` | Import Lightroom Catalog… | File | menu | generated menu / command palette |
-| `file.importPresets` | Import Profiles & Presets… | File | menu | generated menu / command palette |
+| `file.importPresets` | Import Profiles & Presets… | File | swift+menu | Swift references it; also in the generated menus |
 | `file.restoreLibrary` | Restore Library from Backup… | File | excluded | the library is a Files package: restore it with iCloud or Files |
 | `library.selectOnlyActive` | Select Only Active Photo | Edit | menu | generated menu / command palette |
 | `local.addRoot` | Add Folder to Local |  | not reached | UI-only desktop command with no iOS equivalent yet |

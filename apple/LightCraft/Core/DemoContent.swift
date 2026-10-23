@@ -2,8 +2,8 @@ import Foundation
 
 /// Launch-argument driven demo (`-LightCraftDemo`) used by the screenshot pipeline and the UI tests.
 ///
-/// The engine has no seed command: `LightCraftDocument` reopens an empty library with `seedDemo: true`
-/// before the model is created. This type then makes a few edits through the same commands the UI uses,
+/// Samples mode (no Photos access or an empty Photos library in demo mode): the model switches to the
+/// engine's in-memory demo library. This type then makes a few edits through the same commands the UI uses,
 /// so the grid and loupe show variety, and finally raises the `demoReady` marker (`isDemoReady`).
 @MainActor
 enum DemoContent {

@@ -96,7 +96,10 @@ struct LoupeView: View {
         CGFloat(min(Self.maxZoom, max(0.5, model.zoomScale * Double(pinch))))
     }
 
-    /// The photo's aspect fitted into the viewport.
+    /// Breathing room around the photo at fit, so it never touches the bars, the filmstrip or the panel switcher.
+    private static let fitMargin: CGFloat = 8
+
+    /// The photo's aspect fitted into the viewport (less a small margin).
     private func fittedSize(in viewport: CGSize) -> CGSize {
         var aspect: CGFloat = 1.5
         if let image, image.height > 0 {
@@ -104,8 +107,9 @@ struct LoupeView: View {
         } else if let info = model.activePhoto, info.height > 0 {
             aspect = CGFloat(info.width) / CGFloat(info.height)
         }
-        guard viewport.width > 0, viewport.height > 0 else { return .zero }
-        let width = min(viewport.width, viewport.height * aspect)
+        let box = CGSize(width: viewport.width - 2 * Self.fitMargin, height: viewport.height - 2 * Self.fitMargin)
+        guard box.width > 0, box.height > 0 else { return .zero }
+        let width = min(box.width, box.height * aspect)
         return CGSize(width: width, height: width / aspect)
     }
 

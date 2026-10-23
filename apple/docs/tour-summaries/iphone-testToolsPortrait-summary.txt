@@ -1,0 +1,13 @@
+iphone-portrait-tools tour summary
+items: 6  reached: 5  not-reached: 1
+not-reached by cause: missing-identifier=1
+
+REACHED      tool.brush  gesture done; undo step registered=true
+REACHED      tool.linear  gesture done; undo step registered=true
+REACHED      tool.radial  gesture done; undo step registered=true
+REACHED      tool.wbPicker  gesture done; undo step registered=true
+NOT-REACHED  tool.guidedUpright  [missing-identifier] no toolOverlay.guidedUpright guide surface; gestures sent to cropOverlay/loupe; gesture done; undo step registered=true
+REACHED      tool.done  via command palette: ran
+
+notes:
+none

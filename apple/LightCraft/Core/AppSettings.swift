@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Typed access to the user settings and launch arguments.
 enum AppSettings {
@@ -39,6 +40,13 @@ enum AppSettings {
     static var jpegQuality: Double {
         let v = UserDefaults.standard.double(forKey: Key.jpegQuality)
         return v > 0 ? min(max(v, 0.05), 1) : Default.jpegQuality
+    }
+
+    /// The inspector starts open on iPad (it is a sheet on iPhone, which must not pop up by itself), and
+    /// always so in demo / UI-test launches, so a run never depends on what the previous one left behind.
+    static var initialInspectorVisible: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
+        return isDemo ? true : inspectorVisible
     }
 
     static var inspectorVisible: Bool {

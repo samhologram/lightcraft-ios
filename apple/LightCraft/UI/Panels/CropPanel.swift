@@ -18,12 +18,12 @@ struct CropPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Aspect").font(.headline)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 8)], spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
                         ForEach(Self.aspects, id: \.id) { a in
                             Button {
                                 model.run("crop.aspect", ["aspect": a.id])
                             } label: {
-                                Text(verbatim: a.title).frame(maxWidth: .infinity)
+                                Text(verbatim: a.title).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.glass)
                             .accessibilityIdentifier("crop.aspect.\(a.id)")

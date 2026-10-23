@@ -32,7 +32,7 @@ struct EditPanel: View {
                 header
                 ScrollView {
                     VStack(spacing: 4) {
-                        ForEach(Self.order, id: \.self) { sid in
+                        ForEach(order, id: \.self) { sid in
                             if let items = Self.groups[sid], let title = items.first?.section {
                                 section(sid, title, items)
                             }
@@ -45,27 +45,54 @@ struct EditPanel: View {
         }
     }
 
+    /// The desktop's rules: the B&W mixer replaces the colour mixer for a B&W edit.
+    private var order: [String] {
+        Self.order.filter { model.isBlackAndWhite ? $0 != "mixer" : $0 != "bwMix" }
+    }
+
     private var header: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                Button { model.run("develop.auto") } label: { Label("Auto", systemImage: "wand.and.stars") }
-                    .buttonStyle(.glass)
-                    .disabled(!model.isEnabled("develop.auto"))
-                    .accessibilityIdentifier("command.develop.auto")
-                Button { model.run("develop.treatment") } label: { Label("B&W", systemImage: "circle.lefthalf.filled") }
-                    .buttonStyle(.glass)
-                    .disabled(!model.isEnabled("develop.treatment"))
-                    .accessibilityIdentifier("command.develop.treatment")
-                Spacer(minLength: 0)
-                Button(role: .destructive) { model.run("develop.reset") } label: { Label("Reset", systemImage: "arrow.counterclockwise") }
-                    .buttonStyle(.glass)
-                    .disabled(!model.isEnabled("develop.reset"))
-                    .accessibilityIdentifier("command.develop.reset")
-            }
-            .labelStyle(.titleAndIcon)
+        // Labels and icons when they fit, icons only on a narrow inspector (never a wrapped word).
+        ViewThatFits(in: .horizontal) {
+            headerButtons(titles: true)
+            headerButtons(titles: false)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private func headerButtons(titles: Bool) -> some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                headerButton("Auto", "wand.and.stars", id: "develop.auto", titles: titles) { model.run("develop.auto") }
+                headerButton("B&W", "circle.lefthalf.filled", id: "develop.treatment", titles: titles,
+                             on: model.isBlackAndWhite) { model.run("develop.treatment") }
+                headerButton("HDR", "sun.max", id: "develop.hdr", titles: titles, on: model.hdrEnabled) {
+                    model.run("develop.hdr", ["enabled": !model.hdrEnabled])
+                }
+                Spacer(minLength: 0)
+                headerButton("Reset", "arrow.counterclockwise", id: "develop.reset", titles: titles, role: .destructive) {
+                    model.run("develop.reset")
+                }
+            }
+        }
+    }
+
+    private func headerButton(_ title: String, _ symbol: String, id: String, titles: Bool, on: Bool = false,
+                              role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+        Button(role: role, action: action) {
+            Group {
+                if titles {
+                    Label(title, systemImage: symbol).labelStyle(.titleAndIcon).lineLimit(1).fixedSize()
+                } else {
+                    Image(systemName: symbol).frame(minWidth: 24)
+                }
+            }
+        }
+        .buttonStyle(.glass)
+        .tint(on ? .accentColor : nil)
+        .disabled(!model.isEnabled(id))
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("command.\(id)")
     }
 
     private func isExpanded(_ sid: String) -> Binding<Bool> {
@@ -98,7 +125,12 @@ struct EditPanel: View {
     }
 
     private func visibleItems(_ sid: String, _ items: [ControlInfo]) -> [ControlInfo] {
-        sid == "mixer" ? items.filter { $0.id.hasPrefix("mixer.\(band).") } : items
+        switch sid {
+        case "mixer": items.filter { $0.id.hasPrefix("mixer.\(band).") }
+        // HDR headroom and the SDR rendition only exist while HDR editing is on.
+        case "light": model.hdrEnabled ? items : items.filter { !$0.id.hasPrefix("hdr.") }
+        default: items
+        }
     }
 
     private var bandPicker: some View {

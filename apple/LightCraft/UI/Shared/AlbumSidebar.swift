@@ -73,8 +73,12 @@ struct AlbumSidebar: View {
     @State private var newName = ""
 
     var body: some View {
+        if model.samplesMode { samplesList } else { PhotosSidebar(model: model) }
+    }
+
+    private var samplesList: some View {
         List {
-            Section("Library") {
+            Section("Samples") {
                 ForEach(LibrarySourceRow.fixed) { row in sourceButton(row) }
             }
             let rows = LibrarySourceRow.albums(model.albums)
@@ -157,6 +161,11 @@ struct SourceMenuContent: View {
     let model: LibraryModel
 
     var body: some View {
+        if model.samplesMode { samples } else { PhotosSourceMenuContent(model: model) }
+    }
+
+    @ViewBuilder
+    private var samples: some View {
         ForEach(LibrarySourceRow.fixed) { row in item(row) }
         let rows = LibrarySourceRow.albums(model.albums)
         if !rows.isEmpty {
@@ -190,8 +199,89 @@ struct SourceMenuContent: View {
 
     /// Title of the current source for the toolbar.
     static func currentTitle(model: LibraryModel) -> String {
+        if !model.samplesMode { return model.photos.current?.title ?? "Photos" }
         if let row = LibrarySourceRow.fixed.first(where: { $0.isCurrent(source: model.state.source) }) { return row.title }
         if let row = LibrarySourceRow.albums(model.albums).first(where: { $0.isCurrent(source: model.state.source) }) { return row.title }
         return "Library"
+    }
+}
+
+/// iPad sidebar in Photos mode: the library's sources, smart albums and albums.
+struct PhotosSidebar: View {
+    let model: LibraryModel
+
+    var body: some View {
+        let photos = model.photos
+        List {
+            section("Library", .library)
+            section("Smart Albums", .smart)
+            section("Albums", .album)
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Photos")
+        .accessibilityIdentifier("sidebar.photos")
+        .id(photos.revision)
+    }
+
+    @ViewBuilder
+    private func section(_ title: LocalizedStringKey, _ group: PhotosSource.Group) -> some View {
+        let rows = model.photos.sources.filter { $0.group == group }
+        if !rows.isEmpty {
+            Section(title) {
+                ForEach(rows) { row in sourceButton(row) }
+            }
+        }
+    }
+
+    private func sourceButton(_ row: PhotosSource) -> some View {
+        let current = model.photos.currentID == row.id
+        return Button {
+            model.photos.select(row.id)
+            if model.mode == .loupe { model.mode = .grid }
+        } label: {
+            HStack {
+                Label {
+                    Text(verbatim: row.title)
+                } icon: {
+                    Image(systemName: row.symbol)
+                }
+                Spacer(minLength: 4)
+                if let count = row.count {
+                    Text(verbatim: "\(count)").font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(current ? Color.accentColor.opacity(0.18) : Color.clear)
+        .accessibilityAddTraits(current ? .isSelected : [])
+        .accessibilityIdentifier("album.\(row.id)")
+    }
+}
+
+/// iPhone source menu in Photos mode.
+struct PhotosSourceMenuContent: View {
+    let model: LibraryModel
+
+    var body: some View {
+        let photos = model.photos
+        ForEach(Array([PhotosSource.Group.library, .smart, .album].enumerated()), id: \.offset) { offset, group in
+            let rows = photos.sources.filter { $0.group == group }
+            if !rows.isEmpty {
+                if offset > 0 { Divider() }
+                ForEach(rows) { row in
+                    Button {
+                        photos.select(row.id)
+                    } label: {
+                        Label {
+                            Text(verbatim: row.title)
+                        } icon: {
+                            Image(systemName: photos.currentID == row.id ? "checkmark" : row.symbol)
+                        }
+                    }
+                    .accessibilityIdentifier("album.\(row.id)")
+                }
+            }
+        }
     }
 }

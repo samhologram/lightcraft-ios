@@ -24,44 +24,37 @@ class LightCraftUITestCase: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60), "The app has no window")
     }
 
-    /// Creates a new library from the launch scene and waits for the seeded demo photos.
+    /// Waits for the Photos grid (the app opens straight onto the Photos library; there is no document to
+    /// create any more). Allows a Photos permission prompt if one shows. On return the grid is showing and
+    /// `demoReady` exists.
     func openNewDemoLibrary() {
         pause(2)
-        if let button = findNewLibraryButton() {
-            button.tap()
-            // The simulator's file provider sometimes fails the first creation ("Unable to Import
-            // Document", DocumentManager error 1): dismiss and retry, three attempts in all.
-            for attempt in 2...3 {
-                let ok = app.alerts.buttons["OK"].firstMatch
-                guard ok.waitForExistence(timeout: 8), !element("demoReady").exists else { break }
-                note("New Library failed (\(app.alerts.firstMatch.label)); attempt \(attempt)")
-                ok.tap()
-                pause(3)
-                findNewLibraryButton()?.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow Full Access", "Allow Access to All Photos", "Allow"] {
+            let button = springboard.alerts.buttons[label].firstMatch
+            if button.waitForExistence(timeout: 2) {
+                button.tap()
+                break
             }
-        } else {
-            note("New Library button not found")
-            shot("00-launch")
         }
-        XCTAssertTrue(element("demoReady").waitForExistence(timeout: 180), "The demo library never became ready")
+        XCTAssertTrue(element("demoReady").waitForExistence(timeout: 180), "The Photos grid never became ready")
         pause(3)
     }
 
-    func findNewLibraryButton() -> XCUIElement? {
-        let deadline = Date().addingTimeInterval(45)
-        let candidates: [@MainActor () -> XCUIElement] = [
-            { self.app.buttons["New Library"].firstMatch },
-            { self.app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'new library' OR label CONTAINS[c] 'create document' OR label CONTAINS[c] 'new document'")).firstMatch },
-            { self.app.staticTexts["New Library"].firstMatch },
-        ]
-        while Date() < deadline {
-            for make in candidates {
-                let e = make()
-                if e.exists && e.isHittable { return e }
+    /// Taps the system "Modify" confirmation iOS shows when an app changes a photo. Returns whether it showed.
+    @discardableResult
+    func confirmPhotoModification(timeout: TimeInterval = 20) -> Bool {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for host in [springboard, app!] {
+            let button = host.alerts.buttons["Modify"].firstMatch
+            if button.waitForExistence(timeout: host === springboard ? timeout : 2) {
+                shot("system-modify-alert")
+                button.tap()
+                return true
             }
-            pause(1)
         }
-        return nil
+        note("no system Modify confirmation appeared")
+        return false
     }
 
     func element(_ identifier: String) -> XCUIElement {

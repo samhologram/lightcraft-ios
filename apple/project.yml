@@ -53,8 +53,6 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
           UIImageRespectsSafeAreaInsets: false
-        UISupportsDocumentBrowser: true
-        LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         UIRequiresFullScreen: false
         UIApplicationSceneManifest:
@@ -69,20 +67,19 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSPhotoLibraryUsageDescription: LightCraft imports photos from your photo library into your LightCraft library.
-        NSPhotoLibraryAddUsageDescription: LightCraft saves your exported photos to your photo library.
+        NSPhotoLibraryUsageDescription: LightCraft imports your photos and their originals, including RAW files, to edit them non-destructively.
+        NSPhotoLibraryAddUsageDescription: LightCraft saves exported photos to your Photos library.
         CFBundleDocumentTypes:
-          - CFBundleTypeName: LightCraft Library
-            CFBundleTypeRole: Editor
-            LSHandlerRank: Owner
-            LSTypeIsPackage: true
-            LSItemContentTypes: [ca.hologram.lightcraft.library]
-        UTExportedTypeDeclarations:
-          - UTTypeIdentifier: ca.hologram.lightcraft.library
-            UTTypeDescription: LightCraft Library
-            UTTypeConformsTo: [com.apple.package]
+          - CFBundleTypeName: Lightroom Preset
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [ca.hologram.lightcraft.presetfile]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: ca.hologram.lightcraft.presetfile
+            UTTypeDescription: Preset or Profile
+            UTTypeConformsTo: [public.data]
             UTTypeTagSpecification:
-              public.filename-extension: [lightcraftlibrary]
+              public.filename-extension: [xmp, lrtemplate, lcpreset, lmp, mplumpack, lceffect, cube]
   LightCraftTests:
     type: bundle.unit-test
     platform: iOS

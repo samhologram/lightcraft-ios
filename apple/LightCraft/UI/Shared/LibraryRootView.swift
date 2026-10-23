@@ -1,24 +1,6 @@
 import SwiftUI
-import PhotosUI
 import UniformTypeIdentifiers
 @preconcurrency import LightCraftKit
-
-/// A photo picked from the Photos library, copied (with its file name) into a temp folder so the
-/// engine can import it by path.
-private struct PickedPhoto: Transferable {
-    let url: URL
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(importedContentType: .image) { received in
-            let folder = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LightCraftImport-\(UUID().uuidString)", isDirectory: true)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let dest = folder.appendingPathComponent(received.file.lastPathComponent)
-            try FileManager.default.copyItem(at: received.file, to: dest)
-            return PickedPhoto(url: dest)
-        }
-    }
-}
 
 private struct PendingCommand: Identifiable {
     let id: String
@@ -31,15 +13,12 @@ struct LibraryRootView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var phoneLayout = false
     @State private var commandItem: PendingCommand?
     @State private var paletteShown = false
     @State private var exportShown = false
-    @State private var importChooser = false
-    @State private var photosPicking = false
-    @State private var filesPicking = false
-    @State private var pickedItems: [PhotosPickerItem] = []
 
     var body: some View {
         GeometryReader { geo in
@@ -54,6 +33,15 @@ struct LibraryRootView: View {
             .onChange(of: pad, initial: true) { _, new in phoneLayout = !new }
         }
         .focusedSceneValue(\.libraryModel, model)
+        .background {
+            Color.clear.fileImporter(isPresented: $model.showPresetImporter, allowedContentTypes: LibraryModel.presetContentTypes, allowsMultipleSelection: true) { result in
+                if case .success(let urls) = result {
+                    Task { await model.importPresets(urls) }
+                } else if case .failure(let error) = result {
+                    model.lastError = error.localizedDescription
+                }
+            }
+        }
         .background { ShortcutButtons(model: model) }
         .overlay(alignment: .topLeading) {
             if model.isDemoReady {
@@ -65,6 +53,25 @@ struct LibraryRootView: View {
                     .accessibilityLabel("Demo ready")
                     .accessibilityIdentifier("demoReady")
             }
+        }
+        .overlay(alignment: .top) {
+            if model.writeBackCount > 0 {
+                Label("Saving to Photos…", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .glassEffect(.regular, in: Capsule())
+                    .padding(.top, 8)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("photos.saving")
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { model.commitEdits() }
+        }
+        .onOpenURL { url in
+            // Presets shared into the app (Files > Share > LightCraft).
+            if LibraryModel.isPresetFile(url) { Task { await model.importPresets([url]) } }
         }
         .onAppear {
             if model.undoManager == nil { model.undoManager = undoManager }
@@ -93,31 +100,14 @@ struct LibraryRootView: View {
         .onChange(of: model.showExport, initial: true) { _, on in
             if on { presentAfterPanel { exportShown = true } } else { exportShown = false }
         }
-        .onChange(of: model.showImporter) { _, on in
-            if on {
-                model.showImporter = false
-                importChooser = true
-            }
-        }
-        .confirmationDialog("Import Photos", isPresented: $importChooser, titleVisibility: .visible) {
-            Button("Photo Library") { photosPicking = true }
-                .accessibilityIdentifier("import.photoLibrary")
-            Button("Files") { filesPicking = true }
-                .accessibilityIdentifier("import.files")
-            Button("Cancel", role: .cancel) {}
-        }
-        .photosPicker(isPresented: $photosPicking, selection: $pickedItems, matching: .images)
-        .onChange(of: pickedItems) { _, items in
-            guard !items.isEmpty else { return }
-            pickedItems = []
-            Task { await importPicked(items) }
-        }
-        .fileImporter(isPresented: $filesPicking, allowedContentTypes: [.image, .folder], allowsMultipleSelection: true) { result in
-            if case .success(let urls) = result {
-                Task { await importFiles(urls) }
-            } else if case .failure(let error) = result {
-                model.lastError = error.localizedDescription
-            }
+        .alert("LightCraft", isPresented: Binding(
+            get: { model.lastNotice != nil },
+            set: { if !$0 { model.lastNotice = nil } }
+        )) {
+            Button("OK", role: .cancel) { model.lastNotice = nil }
+                .accessibilityIdentifier("notice.ok")
+        } message: {
+            Text(verbatim: model.lastNotice ?? "")
         }
         .alert("Something went wrong", isPresented: Binding(
             get: { model.lastError != nil },
@@ -144,29 +134,6 @@ struct LibraryRootView: View {
     }
 
     // MARK: Import
-
-    private func importPicked(_ items: [PhotosPickerItem]) async {
-        var urls: [URL] = []
-        for item in items {
-            do {
-                if let picked = try await item.loadTransferable(type: PickedPhoto.self) {
-                    urls.append(picked.url)
-                }
-            } catch {
-                model.lastError = error.localizedDescription
-            }
-        }
-        guard !urls.isEmpty else { return }
-        await model.importImages(urls)
-    }
-
-    /// Files and folders picked in the Files app are read in place while their security scope is open
-    /// (the engine copies them into the library's Originals).
-    private func importFiles(_ urls: [URL]) async {
-        let scoped = urls.filter { $0.startAccessingSecurityScopedResource() }
-        defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
-        await model.importImages(urls)
-    }
 }
 
 /// Zero-size, invisible buttons that give a hardware keyboard the desktop's single-key shortcuts

@@ -10,6 +10,8 @@ crop.reset
 crop.rotateAspect
 crop.set
 develop.auto
+develop.hdr
+develop.merge
 develop.profile
 develop.reset
 develop.resetControl
@@ -23,6 +25,7 @@ dialog.newFolder
 edit.redo
 edit.undo
 file.addPhotos
+file.importPresets
 history.list
 history.restore
 keyword.list
@@ -70,8 +73,10 @@ preset.apply
 preset.create
 preset.delete
 preset.favorite
+preset.import
 presets.list
 profile.favorite
+profile.import
 profiles.list
 redeye.add
 redeye.delete

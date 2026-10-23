@@ -24,6 +24,9 @@ Upstream files (everything else) are never edited.
 
 ## 2. The document
 
+> **Superseded (2026-10-23):** the app now uses the device Photos library as the library (see `HANDOFF.md` → To do 2).
+> The text below describes the first, document-based version and is kept until §2 is rewritten.
+
 A LightCraft library is a folder (`catalog.snap`, `catalog.log`, `presets.json`, `prefs.json`,
 `view.json`, `Originals/`, `thumbs/`). On iOS it is a **package document**:
 UTType `ca.hologram.lightcraft.library`, extension `lightcraftlibrary`, conforms to `com.apple.package`.

@@ -13,11 +13,7 @@ struct PhotoGrid: View {
                 ContentUnavailableView {
                     Label("No Photos", systemImage: "photo.on.rectangle")
                 } description: {
-                    Text("Import photos to start building your library.")
-                } actions: {
-                    Button("Import Photos") { model.showImporter = true }
-                        .buttonStyle(.glassProminent)
-                        .accessibilityIdentifier("import.empty")
+                    Text("This source has no photos.")
                 }
             } else {
                 ScrollView {

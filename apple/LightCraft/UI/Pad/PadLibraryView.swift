@@ -34,7 +34,36 @@ struct PadLibraryView: View {
 
     // MARK: Grid
 
+    @ViewBuilder
     private var grid: some View {
+        if model.samplesMode {
+            libraryGrid
+        } else {
+            PhotosGridView(model: model)
+                .safeAreaInset(edge: .bottom, spacing: 0) { footer(count: "\(model.photos.count) of \(model.photos.count) photos") }
+        }
+    }
+
+    private func footer(count: String) -> some View {
+        HStack(spacing: 12) {
+            Text(verbatim: count)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("grid.count")
+            Spacer()
+            Image(systemName: "square.grid.3x3").foregroundStyle(.secondary).accessibilityHidden(true)
+            Slider(value: Bindable(model).thumbSize, in: 80...260)
+                .frame(maxWidth: 180)
+                .accessibilityLabel("Thumbnail size")
+                .accessibilityIdentifier("grid.thumbSize")
+            Image(systemName: "square.grid.2x2").foregroundStyle(.secondary).accessibilityHidden(true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private var libraryGrid: some View {
         PhotoGrid(model: model, selecting: $selecting)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack(spacing: 12) {
@@ -99,8 +128,7 @@ struct PadLibraryView: View {
             }
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            if model.mode == .grid {
-                ImportButton(model: model)
+            if model.mode == .grid && model.samplesMode {
                 Button {
                     selecting.toggle()
                 } label: {

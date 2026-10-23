@@ -8,6 +8,9 @@ struct PhoneLibraryView: View {
     @Bindable var model: LibraryModel
 
     @State private var selecting = false
+    @State private var detent: PresentationDetent = .fraction(Self.smallDetent)
+
+    private static let smallDetent: CGFloat = 0.35
 
     private var panelSheetShown: Binding<Bool> {
         Binding(
@@ -21,17 +24,21 @@ struct PhoneLibraryView: View {
             Group {
                 if model.mode == .loupe {
                     loupe
+                } else if !model.samplesMode {
+                    PhotosGridView(model: model)
+                        .safeAreaInset(edge: .bottom, spacing: 0) { thumbBar }
                 } else {
                     PhotoGrid(model: model, selecting: $selecting)
                         .safeAreaInset(edge: .bottom, spacing: 0) { thumbBar }
                 }
             }
+            .navigationTitle(model.mode == .loupe ? (model.activePhoto?.fileName ?? "Photo") : "")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
         }
         .sheet(isPresented: panelSheetShown) {
             PanelHost(model: model, showsSwitcher: true)
-                .presentationDetents([.fraction(0.35), .medium, .large])
+                .presentationDetents([.fraction(Self.smallDetent), .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled)
                 .presentationDragIndicator(.visible)
                 .presentationContentInteraction(.scrolls)
@@ -53,25 +60,44 @@ struct PhoneLibraryView: View {
 
     // MARK: Loupe
 
+    /// Share of the height the panel sheet covers at its current detent; the photo is fitted above it
+    /// (a full-height sheet hides the photo anyway).
+    private var sheetCover: CGFloat {
+        guard panelSheetShown.wrappedValue else { return 0 }
+        if detent == .fraction(Self.smallDetent) { return Self.smallDetent }
+        return detent == .medium ? 0.5 : 0
+    }
+
     private var loupe: some View {
-        LoupeView(model: model)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { geo in
+            LoupeView(model: model)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, max(0, sheetCover * (geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom) - geo.safeAreaInsets.bottom))
+                .animation(.snappy, value: sheetCover)
+        }
             .background(Color(uiColor: .systemBackground))
             .simultaneousGesture(
                 DragGesture(minimumDistance: 40)
                     .onEnded { value in
                         let dx = value.translation.width, dy = value.translation.height
                         guard model.zoomToFit, abs(dx) > 70, abs(dx) > abs(dy) * 2 else { return }
-                        model.run(dx < 0 ? "library.next" : "library.previous")
+                        if model.samplesMode {
+                            model.run(dx < 0 ? "library.next" : "library.previous")
+                        } else {
+                            model.stepPhoto(dx < 0 ? 1 : -1)
+                        }
                     }
             )
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 4) {
-                    RatingFlagBar(model: model, compact: true)
-                    ToolStrip(model: model)
+                // The panel sheet has its own panel strip and covers this one.
+                if !panelSheetShown.wrappedValue {
+                    VStack(spacing: 4) {
+                        RatingFlagBar(model: model, compact: true)
+                        ToolStrip(model: model)
+                    }
+                    .padding(.bottom, 2)
+                    .background(.bar)
                 }
-                .padding(.bottom, 2)
-                .background(.bar)
             }
     }
 
@@ -85,7 +111,7 @@ struct PhoneLibraryView: View {
                     model.inspectorVisible = false
                     model.mode = .grid
                 } label: {
-                    Label("Library", systemImage: "chevron.backward")
+                    Label("Library", systemImage: "square.grid.2x2")
                 }
                 .accessibilityIdentifier("mode.grid")
             }
@@ -107,13 +133,14 @@ struct PhoneLibraryView: View {
                 .accessibilityIdentifier("menu.source")
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                ImportButton(model: model)
-                Button {
-                    selecting.toggle()
-                } label: {
-                    Label(selecting ? "Done" : "Select", systemImage: selecting ? "checkmark.circle.fill" : "checkmark.circle")
+                if model.samplesMode {
+                    Button {
+                        selecting.toggle()
+                    } label: {
+                        Label(selecting ? "Done" : "Select", systemImage: selecting ? "checkmark.circle.fill" : "checkmark.circle")
+                    }
+                    .accessibilityIdentifier("grid.select")
                 }
-                .accessibilityIdentifier("grid.select")
                 Menu {
                     PaletteButton(model: model)
                     Divider()

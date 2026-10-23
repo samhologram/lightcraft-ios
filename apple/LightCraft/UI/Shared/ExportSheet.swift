@@ -19,6 +19,8 @@ struct ExportSheet: View {
     @State private var working = false
     @State private var files: [URL] = []
     @State private var errorText: String?
+    @State private var savedText: String?
+    @State private var saving = false
 
     private static let sizes: [(title: String, edge: UInt32?)] = [
         ("Original size", nil), ("Large (4096 px)", 4096), ("Medium (2048 px)", 2048), ("Web (1200 px)", 1200),
@@ -76,6 +78,22 @@ struct ExportSheet: View {
                             Label("Share \(files.count) JPEG\(files.count == 1 ? "" : "s")", systemImage: "square.and.arrow.up")
                         }
                         .accessibilityIdentifier("export.share")
+                        Button {
+                            Task { await saveToPhotos() }
+                        } label: {
+                            if saving {
+                                HStack { ProgressView(); Text("Saving…") }
+                            } else {
+                                Label("Save Copy to Photos", systemImage: "photo.badge.plus")
+                            }
+                        }
+                        .disabled(saving)
+                        .accessibilityIdentifier("export.saveToPhotos")
+                        if let savedText {
+                            Label(savedText, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .accessibilityIdentifier("export.saved")
+                        }
                     }
                 }
             }
@@ -89,8 +107,20 @@ struct ExportSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .onChange(of: sizeChoice) { _, _ in files = [] }
-        .onChange(of: quality) { _, _ in files = [] }
+        .onChange(of: sizeChoice) { _, _ in files = []; savedText = nil }
+        .onChange(of: quality) { _, _ in files = []; savedText = nil }
+    }
+
+    private func saveToPhotos() async {
+        errorText = nil
+        saving = true
+        defer { saving = false }
+        do {
+            try await model.photos.saveCopies(files)
+            savedText = "Saved \(files.count) cop\(files.count == 1 ? "y" : "ies") to Photos"
+        } catch {
+            errorText = error.localizedDescription
+        }
     }
 
     private func export() async {

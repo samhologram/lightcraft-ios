@@ -104,7 +104,10 @@ extension LibraryModel {
         case "dialog.export":
             showExport = true
         case "file.addPhotos":
-            showImporter = true
+            // Photos are the library: with limited access this lets the person add more of them.
+            if photos.status == .limited { photos.presentLimitedPicker() } else { lastNotice = "LightCraft shows the photos in your Photos library." }
+        case "file.importPresets":
+            showPresetImporter = true
         case "dialog.newAlbum", "dialog.newFolder":
             pendingCommand = "album.create"
         case "dialog.createPreset":

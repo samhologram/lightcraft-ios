@@ -65,7 +65,16 @@ struct OverflowMenu: View {
     let model: LibraryModel
 
     var body: some View {
+        let canRevert = !model.samplesMode && model.openLocalID != nil
         Menu {
+            if canRevert {
+                Button(role: .destructive) {
+                    model.revertToOriginal()
+                } label: {
+                    Label("Revert to Original", systemImage: "arrow.uturn.backward.circle")
+                }
+                .accessibilityIdentifier("photos.revert")
+            }
             CommandMenuContent(model: model, path: ["Photo"])
             Divider()
             Menu("Edit") { CommandMenuContent(model: model, path: ["Edit"]) }
@@ -89,19 +98,5 @@ struct PaletteButton: View {
             Label("Command Palette", systemImage: "magnifyingglass")
         }
         .accessibilityIdentifier("palette.open")
-    }
-}
-
-/// Import button (`import`).
-struct ImportButton: View {
-    let model: LibraryModel
-
-    var body: some View {
-        Button {
-            model.showImporter = true
-        } label: {
-            Label("Import", systemImage: "square.and.arrow.down")
-        }
-        .accessibilityIdentifier("import")
     }
 }

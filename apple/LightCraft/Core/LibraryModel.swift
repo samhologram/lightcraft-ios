@@ -7,7 +7,7 @@ import Observation
 @MainActor @Observable
 final class LibraryModel {
     /// The thread-safe engine object. Background work (rendering, thumbnails, import) calls it directly.
-    @ObservationIgnored let handle: LibraryHandle
+    @ObservationIgnored var handle: LibraryHandle
 
     // MARK: Engine mirror (refreshed after every call)
     var state: LibraryState
@@ -22,9 +22,15 @@ final class LibraryModel {
         didSet { if activePanel != oldValue { refreshLight() } }  // keeps `croppedFrame` current
     }
     var activeTool: Tool?
-    var mode: Mode = .grid
+    var mode: Mode = .grid {
+        didSet { if oldValue == .loupe && mode != .loupe { commitEdits() } }
+    }
     /// Shown as an alert with the full message.
     var lastError: String?
+    /// A one-off informational message (alert), e.g. the preset import summary.
+    var lastNotice: String?
+    /// Bumps after a preset import so the Presets panel reloads.
+    var presetImportTick = 0
     var isDemoReady = false
     @ObservationIgnored weak var undoManager: UndoManager?
 
@@ -33,8 +39,25 @@ final class LibraryModel {
     var showCommandPalette = false
     /// Press-and-hold Before.
     var showOriginal = false
-    var showImporter = false
+    /// Presents the preset / profile importer (`file.importPresets`).
+    var showPresetImporter = false
+    /// Demo samples (engine demo photos) instead of the Photos library; edits are not written back.
+    var samplesMode = false
+    /// The Photos asset (local identifier, index in the source) open in the loupe.
+    var openLocalID: String?
+    var openIndex: Int?
+    var isOpening = false
+    /// Develop settings JSON of the open photo when it was opened or last written back.
+    @ObservationIgnored var baselineJSON: String?
+    @ObservationIgnored var writeTask: Task<Void, Never>?
+    /// Write-backs to Photos in flight, and how many finished (for the saving indicator and tests).
+    var writeBackCount = 0
+    var savedCount = 0
     var showExport = false
+    /// HDR editing is on for the active photo (`develop.hdr`): the HDR-only controls show.
+    var hdrEnabled = false
+    /// The active photo is edited as black and white (treatment B&W or a mono profile): the B&W mixer replaces the colour mixer.
+    var isBlackAndWhite = false
     var inspectorVisible: Bool { didSet { AppSettings.inspectorVisible = inspectorVisible } }
     /// Loupe fit (true) vs `zoomScale`.
     var zoomToFit = true
@@ -72,7 +95,7 @@ final class LibraryModel {
         AppSettings.registerDefaults()
         self.handle = handle
         state = handle.state()
-        inspectorVisible = AppSettings.inspectorVisible
+        inspectorVisible = AppSettings.initialInspectorVisible
         thumbSize = AppSettings.thumbSize
         refresh()
     }
@@ -109,11 +132,26 @@ final class LibraryModel {
         guard let id = state.active else {
             activePhoto = nil
             if !developValues.isEmpty { developValues = [:] }
+            hdrEnabled = false
+            isBlackAndWhite = false
             return
         }
         activePhoto = handle.photoInfo(id: id)
         let values = Self.decodeValues(try? handle.developValues(id: id))
         if values != developValues { developValues = values }
+        // Same rule as the desktop's `is_bw` and `d.hdr.enabled`.
+        let flags = Self.decodeFlags(try? handle.developJson(id: id))
+        if flags.hdr != hdrEnabled { hdrEnabled = flags.hdr }
+        if flags.bw != isBlackAndWhite { isBlackAndWhite = flags.bw }
+    }
+
+    private static func decodeFlags(_ json: String?) -> (hdr: Bool, bw: Bool) {
+        guard let json, let data = json.data(using: .utf8),
+              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return (false, false) }
+        let hdr = (d["hdr"] as? [String: Any])?["enabled"] as? Bool ?? false
+        let profile = (d["profile"] as? [String: Any])?["id"] as? String ?? ""
+        let bw = d["treatment"] as? String == "bw" || profile == "lc.mono" || profile.hasPrefix("lc.bw.")
+        return (hdr, bw)
     }
 
     private static func decodeValues(_ json: String?) -> [String: Double] {
@@ -151,6 +189,8 @@ final class LibraryModel {
         switch id {
         case "edit.undo": undo(); return true
         case "edit.redo": redo(); return true
+        case "library.next" where !samplesMode: stepPhoto(1); return true
+        case "library.previous" where !samplesMode: stepPhoto(-1); return true
         default: break
         }
         if CommandCatalog.shared.isUI(id) {
@@ -230,29 +270,6 @@ final class LibraryModel {
         refresh()
         if let active = state.active { thumbnailVersions[active, default: 0] += 1 }
         if state.historyId != dragHistoryStart { registerUndoStep(label: state.undoLabel) }
-    }
-
-    // MARK: Import
-
-    /// Imports files (copied into the library). Runs off the main actor; the library stays responsive.
-    func importImages(_ urls: [URL]) async {
-        guard !urls.isEmpty else { return }
-        let scoped = urls.filter { $0.startAccessingSecurityScopedResource() }
-        defer { for url in scoped { url.stopAccessingSecurityScopedResource() } }
-        let params: [String: Any] = ["paths": urls.map(\.path), "mode": "copy"]
-        guard let json = Self.encode(params) else { return }
-        let historyBefore = state.historyId
-        let handle = self.handle
-        let outcome: Result<String, Error> = await Task.detached(priority: .userInitiated) {
-            Result { try handle.execute(id: "library.import", paramsJson: json) }
-        }.value
-        switch outcome {
-        case .success:
-            finishMutation(id: "library.import", params: params, historyBefore: historyBefore)
-        case .failure(let error):
-            lastError = error.localizedDescription
-            refresh()
-        }
     }
 
     // MARK: JSON
