@@ -27,11 +27,16 @@ final class PanelTourUITests: TourTestCase {
 
     private func tour(landscape: Bool) throws {
         startTour(name: "panels", landscape: landscape)
-        defer { attachSummary() }
-        for panel in Self.panelIDs {
-            if let only, !only.contains(panel) { continue }
+        let todo = Self.panelIDs.filter { only?.contains($0) ?? true }
+        for (n, panel) in todo.enumerated() {
             if let limit, items.count >= limit { break }
+            if overBudget {
+                recordRemaining(todo[n...].map { "panel.\($0)" })
+                break
+            }
+            beginItem("panel.\(panel)")
             visit(panel)
+            if Date() > itemDeadline { note("panel.\(panel): exceeded the \(Int(itemBudget)) s item budget") }
         }
         shot("99-final")
     }
@@ -65,9 +70,10 @@ final class PanelTourUITests: TourTestCase {
         var alertTexts: [String] = []
         var refusals: [String] = []
         for step in Self.steps[panel] ?? [] {
+            if timeUp { misses.append("\(step.prefix)(budget)"); break }
             var target = hit(prefix: step.prefix)
             var tries = 0
-            while target == nil && tries < 3 && exists(prefix: step.prefix) {
+            while target == nil && tries < 3 && !timeUp && exists(prefix: step.prefix) {
                 scrollPanel(); tries += 1
                 target = hit(prefix: step.prefix)
             }

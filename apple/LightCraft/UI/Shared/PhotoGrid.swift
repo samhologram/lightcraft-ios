@@ -58,7 +58,8 @@ struct PhotoCell: View {
                     if selecting {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .symbolRenderingMode(.palette)
-                            .foregroundStyle(isSelected ? Color.white : Color.white, isSelected ? Color.accentColor : Color.black.opacity(0.3))
+                            // Kept: white glyph on a dark scrim over the photo.
+                            .foregroundStyle(Color.white, isSelected ? Color.accentColor : Color.black.opacity(0.3))
                             .font(.title3)
                             .padding(6)
                     }
@@ -82,6 +83,7 @@ struct PhotoCell: View {
     @ViewBuilder
     private var badges: some View {
         if let info, info.flag != "none" || info.rating > 0 || info.edited {
+            // Kept: badges and legibility scrim over photo content, system colours.
             HStack(spacing: 4) {
                 if info.flag == "pick" { Image(systemName: "flag.fill").foregroundStyle(.green) }
                 if info.flag == "reject" { Image(systemName: "flag.slash.fill").foregroundStyle(.red) }

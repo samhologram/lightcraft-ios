@@ -48,7 +48,7 @@ struct CropPanel: View {
                             Label("Guided Upright", systemImage: "grid")
                         }
                         .buttonStyle(.glass)
-                        .accessibilityIdentifier("tool.guidedUpright")
+                        .accessibilityIdentifier("control.guidedUpright.open")
                         Spacer()
                         Button(role: .destructive) {
                             model.run("crop.reset")

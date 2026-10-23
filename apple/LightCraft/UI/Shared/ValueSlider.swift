@@ -1,6 +1,7 @@
 import SwiftUI
 @preconcurrency import LightCraftKit
 
+// Kept: slider tracks preview the colour effect (white balance, hue bands, grading wheels).
 private extension Color {
     /// "#rrggbb" (or "rrggbb") to a colour; mid grey when unparsable.
     init(lcHex hex: String) {
@@ -116,9 +117,9 @@ struct ValueSlider: View {
                         .frame(height: 5)
                         .padding(.horizontal, thumb / 2)
                     Circle()
-                        .fill(Color.white)
-                        .overlay(Circle().stroke(Color.black.opacity(0.18), lineWidth: 0.5))
-                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .fill(Color(uiColor: .systemBackground))
+                        .overlay(Circle().stroke(Color.primary.opacity(0.18), lineWidth: 0.5))
+                        .shadow(color: Color.primary.opacity(0.2), radius: 2, y: 1)
                         .frame(width: thumb, height: thumb)
                         .offset(x: f * usable)
                 }

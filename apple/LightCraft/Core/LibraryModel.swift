@@ -85,11 +85,14 @@ final class LibraryModel {
 
     // MARK: Internals shared with the extensions
     @ObservationIgnored var dragHistoryStart: UInt64 = 0
-    @ObservationIgnored let thumbCache: NSCache<NSString, CGImage> = {
-        let cache = NSCache<NSString, CGImage>()
-        cache.countLimit = 800
-        return cache
-    }()
+    /// Rendered thumbnails. Bounded by count and by decoded bytes (cost = width * height * 4).
+    @ObservationIgnored let thumbStats = ThumbCacheStats()
+    @ObservationIgnored let thumbCache: NSCache<NSString, CGImage> = ThumbCacheStats.makeCache()
+    /// Limits concurrent engine renders (loupe renders have their own lane; grid thumbnails use at most two) and lets a newer render of the same view supersede queued ones.
+    @ObservationIgnored let renderGate = AsyncGate(limit: 3, backgroundLimit: 2)
+    @ObservationIgnored var renderGenerations: [String: Int] = [:]
+    @ObservationIgnored var memoryObserver: Task<Void, Never>?
+    @ObservationIgnored var memoryLogTask: Task<Void, Never>?
 
     init(handle: LibraryHandle) {
         AppSettings.registerDefaults()
@@ -97,7 +100,14 @@ final class LibraryModel {
         state = handle.state()
         inspectorVisible = AppSettings.initialInspectorVisible
         thumbSize = AppSettings.thumbSize
+        thumbCache.delegate = thumbStats
         refresh()
+        startMemoryObservers()
+    }
+
+    deinit {
+        memoryObserver?.cancel()
+        memoryLogTask?.cancel()
     }
 
     // MARK: Refresh

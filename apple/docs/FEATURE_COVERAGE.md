@@ -9,7 +9,7 @@ engine catalog command), `mapped` = `docs/tool-map.toml`, `excluded` = cannot wo
 | Group | Total | swift+menu | swift | menu | mapped | excluded | not reached |
 |---|---|---|---|---|---|---|---|
 | Engine commands with a menu path | 73 | 24 | 0 | 49 | 0 | 0 | 0 |
-| Desktop UI commands | 186 | 19 | 3 | 93 | 19 | 14 | 38 |
+| Desktop UI commands | 186 | 19 | 3 | 89 | 19 | 18 | 38 |
 
 Engine commands in total: 370; without a menu path (palette only): 297.
 
@@ -97,7 +97,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 |---|---|---|---|---|
 | `app.about` | About LightCraft | Help | menu | generated menu / command palette |
 | `app.artcraft` | ArtCraft Website | Help | menu | generated menu / command palette |
-| `app.clearRecentLibraries` | Clear Recent Libraries |  | excluded | the document browser lists recent libraries |
+| `app.clearRecentLibraries` | Clear Recent Libraries |  | excluded | there is a single library, the device Photos library: no recent list |
 | `app.contactSheet` | Export Contact Sheet PDF |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `app.discord` | Join the ArtCraft Discord… | Help | menu | generated menu / command palette |
 | `app.displayProfile` | Display Profile |  | excluded | no per-display ICC profile selection on iOS |
@@ -106,19 +106,19 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `app.feedback` | Send Feedback… | Help | menu | generated menu / command palette |
 | `app.github` | LightCraft on GitHub | Help | menu | generated menu / command palette |
 | `app.help` | LightCraft Help | Help | menu | generated menu / command palette |
-| `app.newLibrary` | New Library… | File | excluded | libraries are documents: New Document in the launch scene |
-| `app.openLibrary` | Open Library… | File | excluded | libraries are documents: opened from the launch scene or Files |
+| `app.newLibrary` | New Library… | File | excluded | no library documents: the app edits the device Photos library in place (engine catalog is an internal cache) |
+| `app.openLibrary` | Open Library… | File | excluded | no library documents: the app edits the device Photos library in place (engine catalog is an internal cache) |
 | `app.openLogFolder` | Open Log Folder | Help | excluded | no user-visible log folder on iOS |
 | `app.openSamModelFolder` | Show in File Manager |  | excluded | no user-visible model folder on iOS |
 | `app.print` | Print to PDF |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `app.quit` | Quit LightCraft | File | excluded | iOS apps do not quit themselves |
-| `app.recentLibraries` | Recent Libraries |  | excluded | the document browser lists recent libraries |
+| `app.recentLibraries` | Recent Libraries |  | excluded | there is a single library, the device Photos library: no recent list |
 | `app.resetShortcuts` | Reset All Keyboard Shortcuts |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `app.setShortcut` | Set Keyboard Shortcut |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `app.settings` | Settings… | Edit | menu | generated menu / command palette |
 | `app.shortcuts` | Keyboard Shortcuts | Help | menu | generated menu / command palette |
 | `app.showInFinder` | Show in Finder | Photo | excluded | no Finder on iOS |
-| `app.showInFolders` | Show in Folders | Photo | excluded | no file manager to reveal a file in; the library is a Files package |
+| `app.showInFolders` | Show in Folders | Photo | excluded | no file manager to reveal a photo in: photos live in the Photos library |
 | `app.slideshowExport` | Export Slideshow |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `app.systemInfo` | System Info… | Help | menu | generated menu / command palette |
 | `app.website` | LightCraft Website | Help | menu | generated menu / command palette |
@@ -133,7 +133,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `dialog.allMetadata` | All Metadata… | Photo | menu | generated menu / command palette |
 | `dialog.autoStack` | Auto-Stack by Capture Time… | Photo > Stack | menu | generated menu / command palette |
 | `dialog.captureTime` | Edit Capture Time… | Photo | menu | generated menu / command palette |
-| `dialog.contactSheet` | Contact Sheet PDF… | File | menu | generated menu / command palette |
+| `dialog.contactSheet` | Contact Sheet PDF… | File | excluded | desktop PDF contact-sheet dialog with no iOS equivalent yet: use the share sheet |
 | `dialog.copySettings` | Choose Edit Settings to Copy… | Edit | menu | generated menu / command palette |
 | `dialog.createPreset` | Create Preset… | Photo | swift+menu | Swift references it; also in the generated menus |
 | `dialog.cull` | Assisted Culling… | Photo | menu | generated menu / command palette |
@@ -146,18 +146,18 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `dialog.mergePanorama` | Panorama… | Photo > Photo Merge | menu | generated menu / command palette |
 | `dialog.newAlbum` | New Album… | File | swift+menu | Swift references it; also in the generated menus |
 | `dialog.newFolder` | New Folder… | File | swift+menu | Swift references it; also in the generated menus |
-| `dialog.newSmartAlbum` | New Smart Album from Filter… | File | menu | generated menu / command palette |
+| `dialog.newSmartAlbum` | New Smart Album from Filter… | File | excluded | desktop dialog with no iOS sheet yet: smart albums are not offered on iOS (Photos has its own) |
 | `dialog.pasteSettings` | Paste Selected Settings… | Edit | menu | generated menu / command palette |
-| `dialog.print` | Print… | File | menu | generated menu / command palette |
+| `dialog.print` | Print… | File | excluded | desktop print dialog with no iOS equivalent yet: use the share sheet |
 | `dialog.rename` | Rename Photos… | Photo | menu | generated menu / command palette |
 | `dialog.saveMaskEffect` | Save Current Settings as New Effect Preset… |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `dialog.saveMetadataPreset` | Save Metadata Preset… |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `dialog.slideshowExport` | Export Slideshow… | View | menu | generated menu / command palette |
-| `dialog.smartAlbum` | New Smart Album… | File | menu | generated menu / command palette |
+| `dialog.smartAlbum` | New Smart Album… | File | excluded | desktop dialog with no iOS sheet yet: smart albums are not offered on iOS (Photos has its own) |
 | `file.addFolder` | Import from Folder… | File | menu | generated menu / command palette |
 | `file.addFromDevice` | Import from Device |  | excluded | no mounted cameras or cards (DCIM volumes) on iOS: use Photos or Files import |
 | `file.addPhotos` | Import Photos… | File | swift+menu | Swift references it; also in the generated menus |
-| `file.backupLibrary` | Back Up Library… | File | excluded | the library is a Files package: back it up with iCloud or Files |
+| `file.backupLibrary` | Back Up Library… | File | excluded | the engine catalog is a rebuildable cache of the Photos library, which iCloud Photos and device backups protect |
 | `file.exportCurvePresets` | Export Point Curve Presets… |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `file.exportKeywords` | Export Keywords… | File | menu | generated menu / command palette |
 | `file.exportMaskEffects` | Export Effect Presets… |  | not reached | UI-only desktop command with no iOS equivalent yet |
@@ -167,7 +167,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `file.importKeywords` | Import Keywords… | File | menu | generated menu / command palette |
 | `file.importLightroom` | Import Lightroom Catalog… | File | menu | generated menu / command palette |
 | `file.importPresets` | Import Profiles & Presets… | File | swift+menu | Swift references it; also in the generated menus |
-| `file.restoreLibrary` | Restore Library from Backup… | File | excluded | the library is a Files package: restore it with iCloud or Files |
+| `file.restoreLibrary` | Restore Library from Backup… | File | excluded | the engine catalog is a rebuildable cache of the Photos library: nothing to restore |
 | `library.selectOnlyActive` | Select Only Active Photo | Edit | menu | generated menu / command palette |
 | `local.addRoot` | Add Folder to Local |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `local.hide` | Remove from Local |  | not reached | UI-only desktop command with no iOS equivalent yet |

@@ -9,4 +9,5 @@ build/
 DerivedData/
 .build/
 bridge/target/
+tools/uniffi-bindgen/target/
 .DS_Store

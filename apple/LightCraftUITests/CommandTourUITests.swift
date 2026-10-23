@@ -19,6 +19,7 @@ final class CommandTourUITests: TourTestCase {
         var seen = Set<String>()
         var stagnant = 0
         for _ in 0..<150 {
+            if timeUp { note("enumerate: stopped by the item budget"); break }
             var fresh = 0
             for b in list.buttons.allElementsBoundByIndex where b.exists {
                 let ident = b.identifier
@@ -43,7 +44,8 @@ final class CommandTourUITests: TourTestCase {
 
     private func tour(landscape: Bool) throws {
         startTour(name: "commands", landscape: landscape)
-        defer { attachSummary() }
+        beginItem("enumerate")
+        itemDeadline = Date().addingTimeInterval(300)
         var rows = enumeratePalette()
         extraSummaryLines.append("palette rows enumerated: \(rows.count)")
         if rows.isEmpty { XCTFail("the command palette listed no commands") ; return }
@@ -51,13 +53,24 @@ final class CommandTourUITests: TourTestCase {
         if let limit { rows = Array(rows.prefix(limit)) }
         var deferred: [Row] = []
         var index = 0
-        for row in rows {
+        for (n, row) in rows.enumerated() {
+            if overBudget {
+                recordRemaining(rows[n...].map(\.id) + deferred.map(\.id))
+                shot("99-final")
+                return
+            }
             index += 1
+            beginItem(row.id)
             if !run(row, index: index, final: false) { deferred.append(row) }
         }
         // Second chance for rows that were disabled: earlier commands may have changed the state.
-        for row in deferred {
+        for (n, row) in deferred.enumerated() {
+            if overBudget {
+                recordRemaining(deferred[n...].map(\.id))
+                break
+            }
             index += 1
+            beginItem(row.id)
             _ = run(row, index: index, final: true)
         }
         shot("99-final")

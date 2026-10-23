@@ -57,6 +57,7 @@ struct ExportSheet: View {
                 }
                 if let errorText {
                     Section {
+                        // Kept: semantic error colour.
                         Text(verbatim: errorText).foregroundStyle(.red).textSelection(.enabled)
                     }
                 }
@@ -91,7 +92,7 @@ struct ExportSheet: View {
                         .accessibilityIdentifier("export.saveToPhotos")
                         if let savedText {
                             Label(savedText, systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(.green) // Kept: semantic success colour.
                                 .accessibilityIdentifier("export.saved")
                         }
                     }

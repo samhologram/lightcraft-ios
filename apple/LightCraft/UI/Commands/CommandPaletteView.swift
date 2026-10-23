@@ -132,7 +132,7 @@ private struct PaletteRow: View {
                     if let why {
                         Text(verbatim: why)
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 8)

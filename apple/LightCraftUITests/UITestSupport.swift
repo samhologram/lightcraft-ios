@@ -12,16 +12,70 @@ class LightCraftUITestCase: XCTestCase {
     var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     func launchDemo(dark: Bool, extraArguments: [String] = []) {
+        launch(args: ["-LightCraftDemo"] + extraArguments, prefix: "\(isPad ? "ipad" : "iphone")-\(dark ? "dark" : "light")", dark: dark)
+    }
+
+    /// Launches WITHOUT `-LightCraftDemo`, so the app shows its real permission states (denied / limited
+    /// UI) instead of falling back to the engine's sample photos.
+    func launchPlain(extraArguments: [String] = []) {
+        launch(args: extraArguments, prefix: "\(isPad ? "ipad" : "iphone")-plain", dark: false)
+    }
+
+    private func launch(args: [String], prefix: String, dark: Bool) {
         continueAfterFailure = false
-        let mode = dark ? "dark" : "light"
-        prefix = "\(isPad ? "ipad" : "iphone")-\(mode)"
+        self.prefix = prefix
         notes = []
         XCUIDevice.shared.appearance = dark ? .dark : .light
         app = XCUIApplication()
-        app.launchArguments = ["-LightCraftDemo", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"] + extraArguments
+        app.launchArguments = args + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 60), "The app did not launch")
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60), "The app has no window")
+    }
+
+    /// The Photos state the runner set up (`LC_EXPECT_PHOTOS`, forwarded by `TEST_RUNNER_LC_EXPECT_PHOTOS`);
+    /// nil when the test runs outside the runner.
+    var expectedPhotosState: String? {
+        let v = ProcessInfo.processInfo.environment["LC_EXPECT_PHOTOS"] ?? ""
+        return v.isEmpty ? nil : v
+    }
+
+    /// A state test could not reach its precondition: fails when the runner set an expectation (a skip would
+    /// count as a pass), skips only when none was set. Callers `return` after it when it did not throw.
+    func skipOrFail(_ message: String) throws {
+        if let expected = expectedPhotosState {
+            XCTFail("\(message) (runner expected Photos state: \(expected))")
+        } else {
+            throw XCTSkip(message)
+        }
+    }
+
+    /// The Edit panel on iPhone is open by default and its strip toggles, so tap it only when the exposure
+    /// slider is not already there. On iPad the panel is always visible.
+    func ensureEditPanelOpen() {
+        guard !isPad, !element("control.light.exposure").waitForExistence(timeout: 3) else { return }
+        tap("panel.edit")
+    }
+
+    /// Polls until the element with `identifier` no longer exists; returns whether it went away.
+    @discardableResult
+    func waitForGone(_ identifier: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element(identifier).exists { return true }
+            pause(1)
+        }
+        return !element(identifier).exists
+    }
+
+    /// Waits until any of the identifiers exists; returns the first found (nil on timeout).
+    func waitForAny(_ identifiers: [String], timeout: TimeInterval) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for id in identifiers where element(id).exists { return id }
+            pause(1)
+        }
+        return nil
     }
 
     /// Waits for the Photos grid (the app opens straight onto the Photos library; there is no document to
@@ -88,6 +142,8 @@ class LightCraftUITestCase: XCTestCase {
     }
 
     func shot(_ suffix: String) {
+        // `--no-screenshots` on the runner sets LC_NO_SCREENSHOTS (notes and summaries are still attached).
+        if let v = ProcessInfo.processInfo.environment["LC_NO_SCREENSHOTS"], !v.isEmpty, v != "0" { return }
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "\(prefix)-\(suffix)"
         attachment.lifetime = .keepAlways

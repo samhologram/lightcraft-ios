@@ -52,6 +52,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
+          UIImageName: LaunchIcon
           UIImageRespectsSafeAreaInsets: false
         UIFileSharingEnabled: true
         UIRequiresFullScreen: false

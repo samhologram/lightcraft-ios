@@ -9,20 +9,32 @@ final class ToolTourUITests: TourTestCase {
 
     private func tour(landscape: Bool) throws {
         startTour(name: "tools", landscape: landscape)
-        defer { attachSummary() }
-        for tool in Self.toolIDs {
-            if let only, !only.contains(tool) { continue }
+        let todo = Self.toolIDs.filter { only?.contains($0) ?? true }
+        for (n, tool) in todo.enumerated() {
             if let limit, items.count >= limit { break }
+            if overBudget {
+                recordRemaining(todo[n...].map { "tool.\($0)" } + ["tool.done"])
+                shot("99-final")
+                return
+            }
+            beginItem("tool.\(tool)")
             visit(tool)
+            if Date() > itemDeadline { note("tool.\(tool): exceeded the \(Int(itemBudget)) s item budget") }
         }
         // tool.done through the palette.
-        let status = runPaletteCommand("tool.done")
-        record("tool.done", reached: status == "ran", cause: status == "ran" ? "" : status, "via command palette: \(status)")
+        if overBudget {
+            recordRemaining(["tool.done"])
+        } else {
+            beginItem("tool.done")
+            let status = runPaletteCommand("tool.done")
+            record("tool.done", reached: status == "ran", cause: status == "ran" ? "" : status, "via command palette: \(status)")
+        }
         _ = dismissStrays()
         shot("99-final")
     }
 
     private func drag(_ target: XCUIElement, _ a: (CGFloat, CGFloat), _ b: (CGFloat, CGFloat)) {
+        if timeUp { return }
         let from = target.coordinate(withNormalizedOffset: CGVector(dx: a.0, dy: a.1))
         let to = target.coordinate(withNormalizedOffset: CGVector(dx: b.0, dy: b.1))
         from.press(forDuration: 0.15, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
@@ -43,19 +55,13 @@ final class ToolTourUITests: TourTestCase {
         button.tap()
         pause(1.5)
         var details: [String] = []
-        let overlayID = "toolOverlay.\(tool)"
+        let overlayID = tool == "guidedUpright" ? "tool.guidedUpright.overlay" : "toolOverlay.\(tool)"
         var target = element(overlayID)
         var cause = ""
         if !target.waitForExistence(timeout: 4) {
-            if tool == "guidedUpright" {
-                cause = "missing-identifier"
-                details.append("no \(overlayID) guide surface; gestures sent to cropOverlay/loupe")
-            } else {
-                cause = "missing-identifier"
-                details.append("\(overlayID) missing; gestures sent to loupe")
-            }
-            let crop = element("cropOverlay")
-            target = (tool == "guidedUpright" && crop.exists) ? crop : element("loupe")
+            cause = "missing-identifier"
+            details.append("\(overlayID) missing; gestures sent to loupe")
+            target = element("loupe")
         }
         shot("\(tool)-1-selected")
         guard target.exists else {

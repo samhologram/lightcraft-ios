@@ -250,13 +250,88 @@ final class PhotosLibrary {
         return result.value
     }
 
-    nonisolated private static func request(_ manager: Unchecked<PHCachingImageManager>, _ asset: Unchecked<PHAsset>, _ size: CGSize, _ options: PHImageRequestOptions) async -> Unchecked<UIImage?> {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Unchecked<UIImage?>, Never>) in
-            manager.value.requestImage(for: asset.value, targetSize: size, contentMode: .aspectFill, options: options) { image, info in
-                if (info?[PHImageResultIsDegradedKey] as? Bool) == true, image != nil { return }
-                continuation.resume(returning: Unchecked(value: image))
+    /// Cancels the PhotoKit request when the awaiting task is cancelled (scrolled-off cells), so abandoned
+    /// requests don't pile up in the image manager.
+    private final class RequestToken: @unchecked Sendable {
+        private let lock = NSLock()
+        private var id: PHImageRequestID = PHInvalidImageRequestID
+        private var cancelled = false
+        private var finished = false
+        private var continuation: CheckedContinuation<Unchecked<UIImage?>, Never>?
+
+        /// Stores the continuation. False when the task was already cancelled: the continuation is then
+        /// resumed with nil here and no request must be made.
+        func install(_ continuation: CheckedContinuation<Unchecked<UIImage?>, Never>) -> Bool {
+            lock.lock()
+            if cancelled || finished {
+                finished = true
+                lock.unlock()
+                continuation.resume(returning: Unchecked(value: nil))
+                return false
             }
+            self.continuation = continuation
+            lock.unlock()
+            return true
         }
+
+        func set(_ id: PHImageRequestID, manager: Unchecked<PHCachingImageManager>) {
+            lock.lock()
+            self.id = id
+            let cancelNow = cancelled && !finished
+            lock.unlock()
+            if cancelNow { manager.value.cancelImageRequest(id) }
+        }
+
+        /// Cancels the PhotoKit request and resumes the waiter with nil (exactly once, even if PhotoKit
+        /// never calls the result handler again).
+        func cancel(manager: Unchecked<PHCachingImageManager>) {
+            lock.lock()
+            cancelled = true
+            let id = self.id
+            let live = !finished && id != PHInvalidImageRequestID
+            let pending = finished ? nil : continuation
+            if pending != nil { finished = true }
+            continuation = nil
+            lock.unlock()
+            if live { manager.value.cancelImageRequest(id) }
+            pending?.resume(returning: Unchecked(value: nil))
+        }
+
+        /// Resumes the waiter with `image`, the first time only (the result handler can be called more than once).
+        func complete(_ image: UIImage?) {
+            lock.lock()
+            if finished { lock.unlock(); return }
+            finished = true
+            let pending = continuation
+            continuation = nil
+            lock.unlock()
+            pending?.resume(returning: Unchecked(value: image))
+        }
+    }
+
+    nonisolated private static func request(_ manager: Unchecked<PHCachingImageManager>, _ asset: Unchecked<PHAsset>, _ size: CGSize, _ options: PHImageRequestOptions) async -> Unchecked<UIImage?> {
+        let token = RequestToken()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Unchecked<UIImage?>, Never>) in
+                guard token.install(continuation) else { return }
+                let id = manager.value.requestImage(for: asset.value, targetSize: size, contentMode: .aspectFill, options: options) { image, info in
+                    if (info?[PHImageCancelledKey] as? Bool) == true || info?[PHImageErrorKey] != nil {
+                        token.complete(nil)
+                        return
+                    }
+                    if (info?[PHImageResultIsDegradedKey] as? Bool) == true, image != nil { return }
+                    token.complete(image)
+                }
+                token.set(id, manager: manager)
+            }
+        } onCancel: {
+            token.cancel(manager: manager)
+        }
+    }
+
+    /// Drops PhotoKit's cached thumbnails (memory warning).
+    func trimCaches() {
+        cache.stopCachingImagesForAllAssets()
     }
 
     // MARK: Originals

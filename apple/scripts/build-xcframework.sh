@@ -77,9 +77,16 @@ else
   cp "${SIM_LIBS[0]}" "$BUILD_DIR/sim/$LIB"
 fi
 
-echo "==> Generating Swift bindings (uniffi-bindgen)"
-cd "$BRIDGE_DIR"
-cargo run ${PROFILE_FLAG[@]+"${PROFILE_FLAG[@]}"} --features cli --bin uniffi-bindgen -- \
+echo "==> Generating Swift bindings (apple/tools/uniffi-bindgen, host build of uniffi only)"
+BINDGEN_DIR="$APPLE_DIR/tools/uniffi-bindgen"
+want="$(grep -A1 '^name = "uniffi"$' "$BRIDGE_DIR/Cargo.lock" | sed -n 's/^version = "\(.*\)"/\1/p')"
+have="$(sed -n 's/^uniffi = { version = "=\([^"]*\)".*/\1/p' "$BINDGEN_DIR/Cargo.toml")"
+if [[ -n "$want" && "$want" != "$have" ]]; then
+  echo "error: tools/uniffi-bindgen pins uniffi $have but bridge/Cargo.lock has $want; update tools/uniffi-bindgen/Cargo.toml" >&2
+  exit 1
+fi
+cargo build --release --manifest-path "$BINDGEN_DIR/Cargo.toml"
+"$BINDGEN_DIR/target/release/uniffi-bindgen" \
   generate --library "${SIM_LIBS[0]}" --language swift --out-dir "$BUILD_DIR/bindings"
 
 cp "$BUILD_DIR/bindings/${MODULE}.h" "$BUILD_DIR/headers/"
@@ -92,6 +99,7 @@ if [[ "$SIM_ONLY" == 0 ]]; then
   ARGS+=(-library "$(target_lib aarch64-apple-ios)" -headers "$BUILD_DIR/headers")
 fi
 xcodebuild -create-xcframework "${ARGS[@]}" -output "$XCFRAMEWORK"
+rm -f "$BUILD_DIR/sim/$LIB"  # ~1 GB copy, already inside the xcframework
 
 mkdir -p "$SWIFT_DEST"
 cp "$BUILD_DIR/bindings/lightcraft_apple.swift" "$SWIFT_DEST/lightcraft_apple.swift"

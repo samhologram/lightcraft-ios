@@ -30,7 +30,7 @@ struct CommandSheet: View {
                 if !enabled, let reason = model.handle.disabledReason(id: commandID) {
                     Section {
                         Label { Text(verbatim: reason) } icon: { Image(systemName: "exclamationmark.triangle") }
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if form.usesSelection {
@@ -62,6 +62,7 @@ struct CommandSheet: View {
                 }
                 if let errorText {
                     Section("Error") {
+                        // Kept: semantic error colour.
                         Text(verbatim: errorText).foregroundStyle(.red).textSelection(.enabled)
                             .accessibilityIdentifier("command.sheet.error")
                     }

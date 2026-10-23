@@ -25,6 +25,59 @@ class TourTestCase: LightCraftUITestCase {
     var extraSummaryLines: [String] = []
     var crashed = false
 
+    // MARK: Time budget (hang-proofing)
+
+    /// Whole-test budget in seconds (`TOUR_BUDGET`, default 840 so a 900 s external timeout still sees the summary).
+    var budget: TimeInterval { ProcessInfo.processInfo.environment["TOUR_BUDGET"].flatMap { TimeInterval($0) } ?? 840 }
+    /// Longest an item may take.
+    let itemBudget: TimeInterval = 60
+    /// Longest any single element wait may take.
+    let waitCap: TimeInterval = 20
+    var tourStart = Date()
+    var itemDeadline = Date.distantFuture
+    var currentItem = "start"
+
+    var overBudget: Bool { Date().timeIntervalSince(tourStart) > budget }
+    /// True when the whole budget or the current item's 60 s is spent: loops must stop and record.
+    var timeUp: Bool { overBudget || Date() > itemDeadline }
+
+    func beginItem(_ name: String) {
+        currentItem = name
+        itemDeadline = Date().addingTimeInterval(itemBudget)
+        print("TOUR \(name) begin")
+    }
+
+    /// Records every id not yet visited as "not reached (budget)".
+    func recordRemaining(_ ids: [String]) {
+        for id in ids { record(id, reached: false, cause: "budget", "not reached (budget)") }
+    }
+
+    override func setUp() {
+        super.setUp()
+        executionTimeAllowance = 900
+        tourStart = Date()
+        // A leftover process of the previous test blocks the next launch (XCUITest hangs in "Terminate").
+        XCUIApplication().terminate()
+    }
+
+    override func tearDown() {
+        attachSummary()
+        flushNotes()
+        app?.terminate()
+        super.tearDown()
+    }
+
+    override func note(_ text: String) {
+        super.note(text)
+        appendHost("/tmp/lctour-\(prefix)-notes.log", text + "\n")
+    }
+
+    func appendHost(_ path: String, _ text: String) {
+        guard let data = text.data(using: .utf8) else { return }
+        if let h = FileHandle(forWritingAtPath: path) { h.seekToEndOfFile(); h.write(data); try? h.close() }
+        else { FileManager.default.createFile(atPath: path, contents: data) }
+    }
+
     static let panelIDs = ["edit", "profiles", "crop", "remove", "masking", "redeye", "presets", "info",
                            "keywords", "versions", "activity"]
     static let toolIDs = ["brush", "linear", "radial", "wbPicker", "guidedUpright"]
@@ -44,18 +97,39 @@ class TourTestCase: LightCraftUITestCase {
     func startTour(name: String, landscape: Bool) {
         self.landscape = landscape
         tourName = name
+        tourStart = Date()
+        beginItem("start")
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         launchDemo(dark: false)
         continueAfterFailure = true
         prefix = "\(isPad ? "ipad" : "iphone")-\(landscape ? "landscape" : "portrait")-\(name)"
+        print("TOUR start launched")
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         pause(2)
-        openNewDemoLibrary()
+        openLibraryBounded()
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         pause(1)
         shot("00-library")
         if !openFirstPhoto() { note("start: could not open the first photo") }
         pause(2)
+    }
+
+    /// `openNewDemoLibrary` with bounded waits and a plain identifier lookup for `demoReady` (no NSPredicate).
+    func openLibraryBounded() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow Full Access", "Allow Access to All Photos", "Allow"] {
+            let button = springboard.alerts.buttons[label].firstMatch
+            if button.waitForExistence(timeout: 2) { button.tap(); break }
+        }
+        let ready = app.descendants(matching: .any)["demoReady"]
+        var attempts = 0
+        while attempts < 3 && !overBudget {
+            attempts += 1
+            if ready.waitForExistence(timeout: waitCap) { pause(3); return }
+            print("TOUR start demoReady not yet (\(attempts)/3)")
+        }
+        XCTFail("The Photos grid never became ready (\(Int(waitCap) * attempts) s)")
+        note("demoReady never appeared")
     }
 
     // MARK: Recording
@@ -64,17 +138,17 @@ class TourTestCase: LightCraftUITestCase {
         items.append(TourItem(name: name, reached: reached, cause: cause, detail: detail))
         let line = "\(reached ? "REACHED" : "NOT-REACHED") \(name) [\(cause)] \(detail)"
         NSLog("TOUR %@", line)
-        // Best-effort mirror on the host: a crash can end the run before the summary attachment exists.
-        let path = "/tmp/lctour-\(prefix).log"
-        if let data = (line + "\n").data(using: .utf8) {
-            if let h = FileHandle(forWritingAtPath: path) { h.seekToEndOfFile(); h.write(data); try? h.close() }
-            else { FileManager.default.createFile(atPath: path, contents: data) }
-        }
+        print("TOUR \(name) \(reached ? "REACHED" : "NOT-REACHED") [\(cause)]")
+        let att = XCTAttachment(string: line)
+        att.name = "\(prefix)-item-\(name)"
+        att.lifetime = .keepAlways
+        add(att)
+        // Mirror on the host: a crash or an external kill can end the run before any attachment exists.
+        appendHost("/tmp/lctour-\(prefix).log", line + "\n")
+        writeSummaryFile()
     }
 
-    func attachSummary() {
-        guard !summaryAttached else { return }
-        summaryAttached = true
+    func summaryLines() -> [String] {
         let reached = items.filter(\.reached).count
         let missed = items.filter { !$0.reached }
         var causes: [String: Int] = [:]
@@ -82,6 +156,7 @@ class TourTestCase: LightCraftUITestCase {
         var lines = ["\(prefix) tour summary",
                      "items: \(items.count)  reached: \(reached)  not-reached: \(missed.count)",
                      "not-reached by cause: " + (causes.isEmpty ? "none" : causes.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")),
+                     "elapsed: \(Int(Date().timeIntervalSince(tourStart))) s of budget \(Int(budget)) s; last item: \(currentItem)",
                      ""]
         if !crashItems.isEmpty { lines += ["CRASHES at: " + crashItems.joined(separator: ", "), ""] }
         lines += items.map { i in
@@ -89,8 +164,18 @@ class TourTestCase: LightCraftUITestCase {
         }
         if !extraSummaryLines.isEmpty { lines += ["", "extra:"] + extraSummaryLines }
         lines += ["", "notes:"] + (notes.isEmpty ? ["none"] : notes)
-        try? lines.joined(separator: "\n").write(toFile: "/tmp/lctour-\(prefix)-summary.txt", atomically: true, encoding: .utf8)
-        let attachment = XCTAttachment(string: lines.joined(separator: "\n"))
+        return lines
+    }
+
+    func writeSummaryFile() {
+        try? summaryLines().joined(separator: "\n").write(toFile: "/tmp/lctour-\(prefix)-summary.txt", atomically: true, encoding: .utf8)
+    }
+
+    func attachSummary() {
+        guard !summaryAttached else { return }
+        summaryAttached = true
+        writeSummaryFile()
+        let attachment = XCTAttachment(string: summaryLines().joined(separator: "\n"))
         attachment.name = "\(prefix)-tour-summary"
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -121,7 +206,7 @@ class TourTestCase: LightCraftUITestCase {
         prefix = saved
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         pause(2)
-        openNewDemoLibrary()
+        openLibraryBounded()
         pause(1)
         openFirstPhoto()
         pause(2)
@@ -146,16 +231,29 @@ class TourTestCase: LightCraftUITestCase {
         return nil
     }
 
-    func prefixQuery(_ prefix: String) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+    /// Identifiers starting with `prefix`, in tree order, from ONE accessibility snapshot. No NSPredicate
+    /// (its evaluation is blocked in the runner: "_evaluationBlocked" faults) and no per-element IPC.
+    func ids(prefix: String) -> [String] {
+        guard let root = try? app.snapshot() else { return [] }
+        var found: [String] = []
+        var seen = Set<String>()
+        func walk(_ node: XCUIElementSnapshot) {
+            let id = node.identifier
+            if id.hasPrefix(prefix), seen.insert(id).inserted { found.append(id) }
+            for child in node.children { walk(child) }
+        }
+        walk(root)
+        return found
     }
 
     func hit(prefix: String) -> XCUIElement? {
-        for e in prefixQuery(prefix).allElementsBoundByIndex where canTap(e) { return e }
+        for id in ids(prefix: prefix) {
+            if let e = hit(id) { return e }
+        }
         return nil
     }
 
-    func exists(prefix: String) -> Bool { prefixQuery(prefix).firstMatch.exists }
+    func exists(prefix: String) -> Bool { !ids(prefix: prefix).isEmpty }
 
     /// True when the panel/tool switcher is the iPad's vertical column (otherwise the iPhone's strip).
     var verticalSwitcher: Bool { element("panelSwitcher").exists }
@@ -169,6 +267,7 @@ class TourTestCase: LightCraftUITestCase {
         guard let index = order.firstIndex(of: identifier) else { return (nil, "off-screen") }
         let vertical = verticalSwitcher
         for _ in 0..<8 {
+            if timeUp { return (nil, "off-screen") }
             // The nearest visible sibling is the scrolling handle.
             var anchor: (XCUIElement, Int)?
             for offset in 1..<order.count {
@@ -195,11 +294,11 @@ class TourTestCase: LightCraftUITestCase {
     @discardableResult
     func openFirstPhoto() -> Bool {
         if element("loupe").exists { return true }
-        let deadline = Date().addingTimeInterval(20)
-        while Date() < deadline {
+        let deadline = Date().addingTimeInterval(waitCap)
+        while Date() < deadline && !overBudget {
             if let cell = hit(prefix: "photo.") {
                 cell.tap()
-                return element("loupe").waitForExistence(timeout: 20)
+                return element("loupe").waitForExistence(timeout: waitCap)
             }
             pause(1)
         }
@@ -255,6 +354,7 @@ class TourTestCase: LightCraftUITestCase {
 
     func undoAll(max count: Int = 6) {
         for _ in 0..<count {
+            if overBudget { return }
             let u = element("command.edit.undo")
             guard u.exists, u.isEnabled, canTap(u) else { return }
             u.tap()
@@ -407,6 +507,7 @@ class TourTestCase: LightCraftUITestCase {
         }
         var row: XCUIElement?
         for attempt in 0..<4 {
+            if timeUp { break }
             let q = app.buttons.matching(identifier: "command.\(id)")
             for e in q.allElementsBoundByIndex where canTap(e) { row = e; break }
             if row != nil { break }

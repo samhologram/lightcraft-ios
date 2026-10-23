@@ -1,0 +1,12 @@
+[package]
+name = "uniffi-bindgen"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone so generating Swift bindings never compiles the engine for the host.
+# Keep `uniffi` pinned to the version in apple/bridge/Cargo.lock.
+[workspace]
+
+[dependencies]
+uniffi = { version = "=0.32.2", features = ["cli"] }

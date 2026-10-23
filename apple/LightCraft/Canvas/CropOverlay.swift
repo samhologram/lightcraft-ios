@@ -27,6 +27,7 @@ struct CropOverlay: View {
             Path { p in
                 p.addRect(cropFrame)
             }
+            // Kept: crop guides over photo content.
             .stroke(Color.white, lineWidth: 1.5)
             thirds
             corners

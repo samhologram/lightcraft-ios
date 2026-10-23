@@ -112,3 +112,4 @@ view.zoomFit
 view.zoomIn
 view.zoomOut
 view.zoomToggle
+geometry.guides

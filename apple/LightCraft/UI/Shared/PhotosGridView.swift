@@ -126,13 +126,16 @@ private struct PhotosCell: View {
         .accessibilityLabel("Photo \(index + 1)")
         .accessibilityIdentifier("photo.\(index)")
         .task(id: "\(Int(edge * displayScale))-\(photos.revision)-\(photos.currentID)") {
-            image = await photos.thumbnail(at: index, edge: max(64, edge * displayScale))
+            let result = await photos.thumbnail(at: index, edge: max(64, edge * displayScale))
+            guard !Task.isCancelled else { return }
+            image = result
         }
     }
 
     @ViewBuilder
     private func badges(_ asset: PHAsset?) -> some View {
         if let asset, asset.hasAdjustments || asset.isFavorite {
+            // Kept: legibility scrim over photo content.
             HStack(spacing: 4) {
                 if asset.isFavorite { Image(systemName: "heart.fill").foregroundStyle(.white) }
                 Spacer(minLength: 0)

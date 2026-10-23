@@ -2,7 +2,7 @@
 
 Single source of truth shared by the Rust bridge, the Swift core and the Swift UI. Change it first, then
 the code on both sides. Modelled on the PhotoCraft fork (`/Users/samuelhalle/Code/Pc/apple`), adapted to a
-photo *library* app (Lightroom-style) instead of a layered image editor.
+photo *library* app (Lightroom-style) whose library is the device's Photos library, instead of a layered image editor.
 
 ## 1. Directory ownership
 
@@ -12,7 +12,7 @@ photo *library* app (Lightroom-style) instead of a layered image editor.
 | `apple/scripts/` | Tooling | build-xcframework, check-command-ids, tool-coverage, feature-coverage |
 | `apple/project.yml` | Tooling | XcodeGen spec (`.xcodeproj` generated, gitignored) |
 | `apple/LightCraftKit/` | Tooling | local Swift package: generated xcframework + generated Swift bindings |
-| `apple/LightCraft/Core/` | Swift core | `LibraryModel`, document type, settings, demo seeding, catalogs |
+| `apple/LightCraft/Core/` | Swift core | `LibraryModel`, `PhotosLibrary` (PhotoKit), `AppEnvironment` (catalog + asset map), settings, demo seeding, command catalogs |
 | `apple/LightCraft/Canvas/` | Swift core | loupe view (zoom/pan), crop overlay, mask/brush/gradient overlays |
 | `apple/LightCraft/App/` | Swift UI | `@main`, scenes, `Commands` (menu bar), launch scene |
 | `apple/LightCraft/UI/` | Swift UI | `Shared/`, `Pad/`, `Phone/`, `Panels/`, `Commands/` |
@@ -22,25 +22,88 @@ photo *library* app (Lightroom-style) instead of a layered image editor.
 
 Upstream files (everything else) are never edited.
 
-## 2. The document
+## 2. The data model: the Photos library
 
-> **Superseded (2026-10-23):** the app now uses the device Photos library as the library (see `HANDOFF.md` → To do 2).
-> The text below describes the first, document-based version and is kept until §2 is rewritten.
+The device's Photos library is the user's library (PhotoKit, read/write access). LightCraft has no document type, no
+"New / Open library" and no import step. `LightCraftApp` is a plain `WindowGroup`; every window opens on the Photos grid.
 
-A LightCraft library is a folder (`catalog.snap`, `catalog.log`, `presets.json`, `prefs.json`,
-`view.json`, `Originals/`, `thumbs/`). On iOS it is a **package document**:
-UTType `ca.hologram.lightcraft.library`, extension `lightcraftlibrary`, conforms to `com.apple.package`.
+**Engine catalog = internal cache.** `AppEnvironment.shared` (one per process, shared by all windows) opens the engine
+catalog at `Application Support/LightCraft/Catalog.lightcraftlibrary` (excluded from backup) with
+`LibraryHandle.open(dir:, seedDemo: false)`. It holds the engine photo (develop settings, history, rating, flag) of
+every Photos asset that was opened. `assets.json` next to it maps `PHAsset.localIdentifier` → engine photo id (`AssetMap`).
+The catalog and the map can be deleted at any time: the Photos library is the source of truth; `-LightCraftResetCache`
+wipes `Application Support/LightCraft` at launch (tests). If the catalog cannot be opened the app falls back to an
+in-memory catalog and shows the error.
 
-`LightCraftDocument: ReferenceFileDocument` (Snapshot = `URL` of the working copy):
-- `init()` (New): creates an empty working dir under `Caches/Libraries/<uuid>.lightcraftlibrary`,
-  `LibraryHandle.open(dir:, seedDemo: false)`.
-- `init(configuration:)`: writes `configuration.file` (a directory FileWrapper) to a fresh working dir,
-  opens it. "New" (for the demo arg) = the library has 0 photos.
-- `snapshot(contentType:)`: `handle.persist()`, returns the working dir URL.
-- `fileWrapper(snapshot:configuration:)`: `FileWrapper(url:)` of the working dir, minus `catalog.lock`
-  and `thumbs/` (cache, rebuilt).
-- Engine history is mirrored on the scene `UndoManager`: after every journaled command whose
-  `historyId` changed, register an undo action that calls `handle.undo()` (redo symmetric).
+**Originals are referenced in place, never imported by the user.** The first time an asset is opened, its original (the
+RAW of a RAW+JPEG pair, otherwise the unedited photo) is written with `PHAssetResourceManager` to
+`Application Support/LightCraft/Originals/<sanitized local id>/<original file name>` (network allowed) and registered
+with `library.import {paths, mode:"add"}`: the engine references that file where it is and copies nothing more. The
+cached original is a private cache, not user-visible.
+
+**Opening** (`LibraryModel.openPhoto(at:)`): commit any pending edits of the previously open photo, resolve or create the
+engine photo for the asset, `select` it, remember `openLocalID` / `openIndex` / `baselineJSON` (the develop JSON at open
+time), `mode = .loupe`. Photos is the only source list: All Photos, Favorites, RAW (found by scanning the asset
+resources: PhotoKit has no RAW smart album), a fixed set of Photos smart albums (Recently Added, Screenshots, Selfies,
+Panoramas, Live Photos, Portrait, Long Exposure; empty ones hidden) and the user's albums. The fetch is live
+(`PHPhotoLibraryChangeObserver`).
+
+**Write-back keeps edits re-editable and revertable in Photos.** Leaving the loupe (`mode` leaves `.loupe`), or the scene
+leaving `.active`, calls `commitEdits()`: if `developJson` differs from `baselineJSON`, the photo is rendered at full
+resolution (`export_jpeg`, long edge = the photo's, quality 92) and written with `PHContentEditingInput` /
+`PHContentEditingOutput` plus `PHAdjustmentData(formatIdentifier: "ca.hologram.lightcraft", formatVersion: "1", data:
+<full DevelopSettings JSON, UTF-8>)`, via `PHAssetChangeRequest.contentEditingOutput`. The rendered file is JPEG, or HEIC
+when Photos asks for HEIC. iOS asks the person to confirm each modification; declining (`PHPhotosErrorDomain` 3072) is
+silent. Writes are serialized (`writeTask`); `savedCount` / `writeBackCount` expose progress. Other errors → `lastError`
+("Saving to Photos failed: …").
+
+**Reopening restores settings.** When an asset is first registered, `requestContentEditingInput` is asked with
+`canHandleAdjustmentData` = our format identifier; if the asset carries LightCraft adjustment data its JSON is applied
+with `develop.merge` (history label "Restore LightCraft edits"). Edits by other apps are not read; the original is the
+starting point. Later opens use the cached engine photo, which keeps its own history.
+
+**Revert.** "Revert to Original" calls `PHAssetChangeRequest.revertAssetContentToOriginal()` (Photos' own revert) and
+runs `develop.reset` on the engine photo. Not offered in samples mode.
+
+**Permission states** (`PhotosLibrary.status`, `PhotosGridView`), each with its own UI:
+
+| State | UI |
+|---|---|
+| not determined | "Requesting access…" progress; the system prompt is requested at launch (`bootstrap`) and again by the grid |
+| denied / restricted | "Photos Access Needed" empty state with Open Settings; status re-read when the scene becomes active |
+| limited | the grid shows the selected photos plus a banner "LightCraft can only see the photos you selected." with **Select More Photos** (`presentLimitedLibraryPicker`) |
+| full | the grid |
+
+**Demo / samples mode.** With `-LightCraftDemo` (`AppSettings.isDemo`), when Photos is denied or empty
+`LibraryModel.useSamples()` swaps the window to `LibraryHandle.inMemoryDemo()` (`samplesMode = true`): the engine's
+procedural sample photos, editable, no write-back, no Revert, `DemoContent.seed` applies a few edits, then `demoReady`.
+Otherwise the demo run uses the real Photos library.
+
+**Undo.** The engine owns the history. Each `LibraryScene` passes the scene's `UndoManager` to its `LibraryModel`; after
+every journaled command whose `historyId` changed, an undo action calling `handle.undo()` is registered (redo
+symmetric; `LibraryModel+Undo.swift`). There is no autosave and no document `snapshot`: the engine catalog is persisted
+with `handle.persist()` after registering an asset; edits reach Photos only through write-back above.
+
+**Save a copy / export.** Exports are written to temp files; "Save to Photos" adds them as new assets
+(`saveCopies`, add-only access suffices). The share sheet is the other route out.
+
+**Preset import** (Presets panel ▸ Import Presets…, command `file.importPresets`; a preset file opened from
+Files is imported too): the picked items are copied (security scoped) to a temp folder. `.cube`, `.zip` and
+folders go to `profile.import`; everything except `.cube` goes to `preset.import`. Accepted extensions: `xmp`,
+`lrtemplate`, `zip`, `dng`, `lmp`, `mplumpack`, `cube`, `lcpreset`, `lceffect`, and folders. The summary (imported
+presets / profiles / mask effects, settings not carried over, per-file failures with reasons) is shown via `lastNotice`.
+
+### Divergences / TODO
+
+- Revert is a button in the loupe's "…" overflow menu ("Revert to Original", `photos.revert`), not an item of the
+  generated menu bar's Photo menu.
+- The full flow (open → edit → write-back → reopen → revert, and the denied/limited states) is built but not yet verified
+  on a simulator (`HANDOFF.md` To do 1); `DevicePhotosUITests` still looks for the old import button.
+- Write-back is triggered on leaving the loupe or the scene going inactive, not per edit; a crash while editing may lose
+  the edits since the last write-back.
+- Edits made by another app, and adjustment data of other format identifiers, are ignored on open.
+- Only images are listed (no video, no Live Photo motion); no People / Places / Recents-by-date smart albums.
+- Smart Album, Print and Contact Sheet dialogs are not available on iOS yet (README, Known gaps).
 
 ## 3. Rust bridge API (UniFFI, crate `lightcraft_apple`, Swift module `LightCraftKit`)
 
@@ -161,7 +224,7 @@ checked by `scripts/check-command-ids.sh` against `command_catalog` + `ui_comman
 
 ```swift
 @MainActor @Observable final class LibraryModel {
-    let handle: LibraryHandle
+    var handle: LibraryHandle               // the shared catalog; swapped for the in-memory demo in samples mode
     var state: LibraryState                 // refreshed after every call
     var visible: [UInt64]
     var albums: [AlbumInfo]
@@ -171,20 +234,28 @@ checked by `scripts/check-command-ids.sh` against `command_catalog` + `ui_comman
     var activeTool: Tool?                   // .brush .linear .radial .wbPicker .guidedUpright (tool.* ids)
     var mode: Mode                          // .grid / .loupe
     var lastError: String?                  // shown as an alert (full message)
-    var isDemoReady: Bool
+    var isDemoReady: Bool                   // `demoReady` marker: Photos grid ready (or samples seeded)
+    var samplesMode: Bool                   // engine's in-memory demo photos, no Photos write-back
+    var openLocalID: String?                // PHAsset.localIdentifier of the photo open in the loupe
+    var photos: PhotosLibrary { get }       // AppEnvironment.shared.photos
+    var lastNotice: String?                 // info alert (preset import summary)
     weak var undoManager: UndoManager?
 
     func run(_ id: String, _ params: [String: Any] = [:]) // execute + refresh + register undo; errors → lastError
     func isEnabled(_ id: String) -> Bool
     func runUI(_ id: String)                // desktop UI-only command ids (view.*, panel.*, tool.*, dialog.*)
     func select(_ id: UInt64)               // library.select {ids:[id], active:id}
-    func open(_ id: UInt64)                 // select + mode = .loupe
+    func open(_ id: UInt64)                 // select + mode = .loupe (engine ids; samples mode)
+    func openPhoto(at index: Int) async     // Photos grid index: register the asset, select, mode = .loupe
+    func bootstrap() async                  // request Photos access, samples fallback in demo mode
+    func commitEdits()                      // write changed settings back to Photos (leaving the loupe)
+    func revertToOriginal()                 // PhotoKit revert + develop.reset
     func setDevelop(_ control: String, _ value: Double)  // develop.set {values:{control:value}} during a drag
     func beginDrag(_ label: String); func endDrag()
     func refresh()
     func thumbnail(_ id: UInt64, edge: Int) async -> CGImage?   // cached
     func render(_ id: UInt64, size: CGSize, before: Bool, draft: Bool) async -> CGImage?
-    func importImages(_ urls: [URL]) async  // library.import {paths, mode:"copy"}
+    func importPresets(_ urls: [URL]) async -> String // profile.import / preset.import, summary in lastNotice
 }
 enum Panel: String, CaseIterable { case edit, profiles, crop, remove, masking, redeye, presets, info, keywords, versions, activity } // rawValue = suffix of panel.<id>
 enum Tool: String, CaseIterable { case brush, linear, radial, wbPicker, guidedUpright }             // rawValue = suffix of tool.<id>
@@ -195,7 +266,7 @@ More `LibraryModel` members shared between Core and UI:
     var pendingCommand: String?             // set by menus/palette for a command that takes params; UI shows CommandSheet
     var showCommandPalette: Bool
     var showOriginal: Bool                  // press-and-hold Before
-    var showImporter: Bool                  // PhotosPicker / file importer
+    var showImporter: Bool                  // preset / profile file importer (file.importPresets)
     var showExport: Bool
     var inspectorVisible: Bool              // iPad inspector column
     var zoomToFit: Bool                     // loupe fit vs 100 %
@@ -203,7 +274,7 @@ More `LibraryModel` members shared between Core and UI:
     var undoRedoTick: Int                   // bumps on undo/redo so views re-render
     func present(_ id: String)              // runs directly when the command has no required params, else pendingCommand = id
 ```
-Entry views: `App` builds `LibraryRootView(model: document.model)` (owned by UI, `UI/Shared/LibraryRootView.swift`),
+Entry views: each `WindowGroup` window builds `LibraryRootView(model:)` with its own `LibraryModel(handle: AppEnvironment.shared.catalog)` (owned by UI, `UI/Shared/LibraryRootView.swift`),
 which picks `PadLibraryView` or `PhoneLibraryView` by horizontal size class / window width. Sheets for
 `pendingCommand` (`CommandSheet`), the palette (`CommandPaletteView`) and errors (alert with the full message) are
 attached in `LibraryRootView`. The menu bar (`App/LibraryCommands.swift`, Core-owned) reads the focused model through
@@ -219,3 +290,8 @@ attached in `LibraryRootView`. The menu bar (`App/LibraryCommands.swift`, Core-o
 popovers, sheets), `control.<controlId>` (develop sliders), `section.<sectionId>`, `photo.<id>`
 (grid cells), `album.<id>`, `mode.grid`, `mode.loupe`, `loupe`, `demoReady` (hidden marker element,
 present once demo seeding finished), `import`, `filmstrip`.
+
+Guided Upright: the tool-strip button is `tool.guidedUpright`; the Crop panel's shortcut button that opens it is
+`control.guidedUpright.open` (identifiers are unique). Once active, the overlay surface is
+`tool.guidedUpright.overlay` and each guide is `control.guidedUpright.guide.<n>` (n = 0-based index; actions
+"Delete Guide" and "Move Start/End Left/Right/Up/Down").

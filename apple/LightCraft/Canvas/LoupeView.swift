@@ -14,6 +14,8 @@ struct LoupeView: View {
     @State private var image: CGImage?
     @State private var renderedID: UInt64?
     @State private var baseOffset: CGSize = .zero
+    /// True while a Guided Upright guide is being drawn or a handle dragged (pinch zoom is paused then).
+    @State private var guideInteracting = false
     @GestureState private var dragTranslation: CGSize = .zero
     @GestureState private var pinch: CGFloat = 1
     @GestureState private var holding = false
@@ -60,8 +62,8 @@ struct LoupeView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
             .clipped()
-            .gesture(panGesture(fitted: fitted, viewport: geo.size), including: overlayActive ? .subviews : .all)
-            .simultaneousGesture(magnify(viewport: geo.size, fitted: fitted))
+            .gesture(panGesture(fitted: fitted, viewport: geo.size), including: overlayBlocksPan ? .subviews : .all)
+            .simultaneousGesture(magnify(viewport: geo.size, fitted: fitted), including: (model.activeTool == .guidedUpright && guideInteracting) ? .subviews : .all)
             .simultaneousGesture(holdGesture, including: overlayActive ? .subviews : .all)
             .onTapGesture(count: 2) { if !overlayActive { model.runUI("view.zoomToggle") } }
             .onChange(of: holding) { _, now in model.showOriginal = now }
@@ -69,7 +71,7 @@ struct LoupeView: View {
             .onChange(of: model.activePhoto?.id) { _, _ in baseOffset = .zero }
             .task(id: renderKey(viewport: geo.size)) { await renderImage(viewport: geo.size) }
         }
-        .background(Color.black.opacity(0.0001))
+        .background(Color.clear.contentShape(Rectangle())) // Kept: invisible hit-testing surface.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("loupe")
     }
@@ -80,9 +82,17 @@ struct LoupeView: View {
         model.activeTool != nil || model.activePanel == .crop
     }
 
+    /// Overlays own one-finger drags, except Guided Upright while zoomed in: there the photo pans (guides are
+    /// drawn at fit zoom; their handles stay draggable).
+    private var overlayBlocksPan: Bool {
+        overlayActive && !(model.activeTool == .guidedUpright && model.zoomScale > 1.001)
+    }
+
     @ViewBuilder
     private func overlay(size: CGSize) -> some View {
-        if model.activeTool == .linear || model.activeTool == .radial || model.activeTool == .brush
+        if model.activeTool == .guidedUpright {
+            GuidedUprightOverlay(model: model, size: size, drawEnabled: model.zoomScale <= 1.001, interacting: $guideInteracting)
+        } else if model.activeTool == .linear || model.activeTool == .radial || model.activeTool == .brush
             || model.activeTool == .wbPicker {
             MaskOverlay(model: model, size: size)
         } else if model.activePanel == .crop {

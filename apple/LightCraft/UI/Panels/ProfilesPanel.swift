@@ -62,7 +62,7 @@ struct ProfilesPanel: View {
                                         model.run("profile.favorite", ["id": row.id])
                                     } label: {
                                         Image(systemName: row.favorite ? "star.fill" : "star")
-                                            .foregroundStyle(row.favorite ? Color.yellow : Color.secondary)
+                                            .foregroundStyle(row.favorite ? Color.accentColor : Color.secondary)
                                     }
                                     .buttonStyle(.borderless)
                                     .accessibilityLabel("Favorite")

@@ -16,20 +16,13 @@ name = "lightcraft_apple"
 lightcraft-engine = { path = "../../crates/engine" }
 lightcraft-develop = { path = "../../crates/develop" }
 lightcraft-catalog = { path = "../../crates/catalog" }
+lightcraft-pipeline = { path = "../../crates/pipeline" }
+lightcraft-geom = { path = "../../crates/geom" }
 serde_json = "1"
 uniffi = "0.32"
 thiserror = "2"
 
 [dev-dependencies]
-
-[features]
-# Only needed to run the `uniffi-bindgen` binary (Swift binding generation); never shipped in the app.
-cli = ["uniffi/cli"]
-
-[[bin]]
-name = "uniffi-bindgen"
-path = "src/bin/uniffi-bindgen.rs"
-required-features = ["cli"]
 
 [profile.dev.package."*"]
 opt-level = 2

@@ -17,7 +17,7 @@ struct RatingFlagBar: View {
                         model.run("photo.rate", ["rating": (photo?.rating == UInt32(n)) ? 0 : n])
                     } label: {
                         Image(systemName: (photo?.rating ?? 0) >= UInt32(n) ? "star.fill" : "star")
-                            .foregroundStyle((photo?.rating ?? 0) >= UInt32(n) ? Color.yellow : Color.secondary)
+                            .foregroundStyle((photo?.rating ?? 0) >= UInt32(n) ? Color.accentColor : Color.secondary)
                             .frame(minWidth: 30, minHeight: 36)
                     }
                     .buttonStyle(.plain)
@@ -27,6 +27,7 @@ struct RatingFlagBar: View {
             }
             Divider().frame(height: 22)
             HStack(spacing: 2) {
+                // Kept: pick/reject semantic status colours (system green/red adapt to dark/light).
                 flagButton("photo.pick", "Pick", "flag.fill", .green, active: photo?.flag == "pick")
                 flagButton("photo.reject", "Reject", "flag.slash.fill", .red, active: photo?.flag == "reject")
                 flagButton("photo.unflag", "Unflag", "flag", .secondary, active: photo?.flag == "none")

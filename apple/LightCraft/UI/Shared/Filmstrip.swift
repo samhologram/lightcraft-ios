@@ -109,7 +109,9 @@ private struct FilmstripThumb: View {
             if let image { Image(uiImage: image).resizable().scaledToFill() }
         }
         .task(id: "\(photos.revision)-\(photos.currentID)") {
-            image = await photos.thumbnail(at: index, edge: max(64, edge))
+            let result = await photos.thumbnail(at: index, edge: max(64, edge))
+            guard !Task.isCancelled else { return }
+            image = result
         }
     }
 }

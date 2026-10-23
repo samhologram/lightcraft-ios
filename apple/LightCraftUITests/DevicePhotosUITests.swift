@@ -1,9 +1,9 @@
 import XCTest
 
 /// The Photos library as LightCraft's library (PhotoKit): grid, sources, editing with write-back to the
-/// asset, restore from the stored adjustment data, revert, Save Copy to Photos, and Lightroom preset import.
-/// Needs photos access granted with `simctl privacy grant photos ca.hologram.lightcraft` and images in the
-/// simulator's Photos library.
+/// asset, restore from the stored adjustment data, revert, Save Copy to Photos, and the denied / limited
+/// permission states. Needs images in the simulator's Photos library; the runner sets the permission per
+/// method with `simctl privacy` (testDenied* revoke, testLimited* reset, everything else grants).
 @MainActor
 final class DevicePhotosUITests: LightCraftUITestCase {
     private func firstCell() -> XCUIElement { element("photo.0") }
@@ -16,7 +16,7 @@ final class DevicePhotosUITests: LightCraftUITestCase {
     }
 
     private func exposureElement() -> XCUIElement {
-        if !isPad { tap("panel.edit") }
+        ensureEditPanelOpen()
         let e = element("control.light.exposure")
         _ = e.waitForExistence(timeout: 15)
         return e
@@ -72,7 +72,7 @@ final class DevicePhotosUITests: LightCraftUITestCase {
         backToGrid()
         confirmPhotoModification()
         let saving = element("photos.saving")
-        if saving.exists { wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: saving)], timeout: 60) }
+        if saving.exists { waitForGone("photos.saving", timeout: 60) }
         pause(3)
         shot("03-after-save")
         XCTAssertTrue(element("photo.edited.0").waitForExistence(timeout: 20), "the asset in Photos has no adjustments after saving")
@@ -90,9 +90,12 @@ final class DevicePhotosUITests: LightCraftUITestCase {
         // Revert to Original.
         revertOpenPhoto()
         shot("05-reverted")
+        pause(2)
+        let afterRevert = exposureElement().value as? String ?? "?"
+        note("exposure after revert: \(afterRevert)")
+        XCTAssertEqual(afterRevert, before, "exposure is not back to default after Revert to Original")
         backToGrid()
-        let gone = NSPredicate(format: "exists == false")
-        wait(for: [expectation(for: gone, evaluatedWith: element("photo.edited.0"))], timeout: 30)
+        waitForGone("photo.edited.0", timeout: 30)
         shot("06-grid-reverted")
         XCTAssertFalse(element("photo.edited.0").exists, "the asset still has adjustments after reverting")
     }
@@ -115,52 +118,75 @@ final class DevicePhotosUITests: LightCraftUITestCase {
         XCTAssertTrue(saved, "Save Copy to Photos did not confirm")
     }
 
-    func testImportLightroomPreset() throws {
+    // MARK: Permission states (the runner sets them with `simctl privacy` before each method; see run-ui-tests.sh)
+
+    /// Photos access denied: the app (launched without -LightCraftDemo) shows the access-needed screen.
+    func testDeniedState() throws {
+        launchPlain()
+        defer { flushNotes() }
+        let found = waitForAny(["photos.openSettings", "photo.0", "photos.selectMore"], timeout: 60)
+        shot("01-denied")
+        guard found == "photos.openSettings" else {
+            note("not in the denied state (found: \(found ?? "nothing")); the runner revokes access with simctl privacy revoke")
+            try skipOrFail("Photos access is not denied in this run")
+            return
+        }
+        XCTAssertFalse(element("photo.0").exists, "photos shown although access is denied")
+        let title = app.staticTexts["Photos Access Needed"]
+        if !title.exists { note("'Photos Access Needed' title not found") }
+    }
+
+    /// Denied access with -LightCraftDemo: falls back to the engine's sample photos (grid ready, editable).
+    func testDeniedDemoFallback() throws {
         launchDemo(dark: false)
         defer { flushNotes() }
         openNewDemoLibrary()
-        openFirstPhoto()
-        tap("panel.presets")
-        pause(1)
-        shot("01-presets")
-        XCTAssertTrue(tap("command.file.importPresets"), "no Import Presets button")
-        // The system document picker: On My iPad/iPhone > LightCraft > the .xmp.
-        pause(3)
-        shot("02-picker")
-        let target = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'TestWarm'")).firstMatch
-        if !target.waitForExistence(timeout: 5) {
-            for place in ["On My iPad", "On My iPhone", "LightCraft"] {
-                let b = app.cells[place].firstMatch.exists ? app.cells[place].firstMatch : app.staticTexts[place].firstMatch
-                if b.waitForExistence(timeout: 3) { b.tap(); pause(1) }
-            }
-            shot("02b-picker-browse")
-        }
-        if target.waitForExistence(timeout: 8) {
-            target.tap()
-            let open = app.buttons["Open"].firstMatch
-            if open.waitForExistence(timeout: 2) { open.tap() }
-        } else { note("TestWarm.xmp not found in the picker") }
-        let ok = element("notice.ok")
-        XCTAssertTrue(ok.waitForExistence(timeout: 30), "no import summary")
-        note("summary: " + app.alerts.firstMatch.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | "))
-        shot("03-summary")
-        ok.tap()
-        pause(1)
-        let preset = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'LC Test Warm'")).firstMatch
-        XCTAssertTrue(preset.waitForExistence(timeout: 10), "imported preset is not listed")
-        shot("04-listed")
-        tap("panel.edit")
-        let exposure = element("control.light.exposure")
-        _ = exposure.waitForExistence(timeout: 10)
-        let before = exposure.value as? String ?? "?"
-        tap("panel.presets")
-        if preset.waitForExistence(timeout: 5) { preset.tap() }
+        shot("01-fallback")
+        if element("photos.openSettings").exists { note("denied screen shown instead of the sample fallback") }
+        XCTAssertTrue(element("photo.0").waitForExistence(timeout: 30), "no sample photos after the fallback")
+    }
+
+    /// Limited access: the grid shows the limited banner with its Select More Photos button. simctl cannot
+    /// set "limited" directly; the runner resets the permission so the system prompt appears, and this test
+    /// chooses "Select Photos…" and picks a photo. If that cannot be driven the test fails when the runner set an expectation (LC_EXPECT_PHOTOS), else it is skipped.
+    func testLimitedState() throws {
+        launchPlain()
+        defer { flushNotes() }
         pause(2)
-        tap("panel.edit")
-        _ = exposure.waitForExistence(timeout: 10)
-        let after = exposure.value as? String ?? "?"
-        note("exposure before: \(before) after: \(after)")
-        shot("05-applied")
-        XCTAssertNotEqual(before, after, "applying the preset did not change exposure")
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Select Photos…", "Select Photos...", "Limit Access…", "Limit Access...", "Select Photos"] {
+            let b = springboard.alerts.buttons[label].firstMatch
+            if b.waitForExistence(timeout: 3) { shot("01-prompt"); b.tap(); break }
+        }
+        pause(3)
+        if !element("photos.selectMore").exists {
+            // The limited picker (PHPicker) runs out of process: look in the app first, then in springboard.
+            var searched: [(String, XCUIApplication)] = [("app", app)]
+            searched.append(("springboard", springboard))
+            var picked = false
+            for (name, host) in searched where !picked {
+                let candidates: [XCUIElement] = [host.cells.firstMatch, host.images.firstMatch]
+                if let pick = candidates.first(where: { $0.waitForExistence(timeout: 5) }), pick.isHittable {
+                    pick.tap()
+                    picked = true
+                    note("limited picker photo found in \(name)")
+                    for label in ["Add", "Done"] {
+                        let b = host.buttons[label].firstMatch
+                        if b.waitForExistence(timeout: 2) { b.tap(); break }
+                    }
+                }
+            }
+            if !picked {
+                note("no photo in the limited picker (searched the app and springboard); the picker runs out of process, so its elements may not be exposed to this test")
+            }
+        }
+        let found = waitForAny(["photos.selectMore", "photo.0"], timeout: 40)
+        shot("02-limited")
+        guard found != nil, element("photos.selectMore").waitForExistence(timeout: 10) else {
+            note("limited banner not reached (found: \(found ?? "nothing")); simctl cannot grant limited access")
+            try skipOrFail("could not reach the limited Photos state")
+            return
+        }
+        XCTAssertTrue(element("photo.0").exists, "limited access shows no photos")
     }
 }

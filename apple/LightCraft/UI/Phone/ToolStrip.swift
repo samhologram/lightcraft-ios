@@ -21,6 +21,8 @@ struct ToolStrip: View {
                                 Text(verbatim: panel.uiTitle).font(.caption2).lineLimit(1)
                             }
                             .frame(minWidth: 58)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(panel.uiTitle)
                         }
                         .glassToggle(selected)
                         .accessibilityLabel(panel.uiTitle)

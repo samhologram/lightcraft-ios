@@ -24,6 +24,7 @@ struct MaskingPanel: View {
         let track: SliderTrack
     }
 
+    // Kept: white-balance preview gradients, content colour.
     private static let tempTrack = SliderTrack.gradient([Color(red: 0.23, green: 0.48, blue: 0.84), Color(red: 0.94, green: 0.82, blue: 0.23)])
     private static let tintTrack = SliderTrack.gradient([Color(red: 0.25, green: 0.73, blue: 0.31), Color(red: 0.84, green: 0.25, blue: 0.66)])
 

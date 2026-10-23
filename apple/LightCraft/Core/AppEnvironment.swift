@@ -35,6 +35,10 @@ final class AppEnvironment {
         excluded.isExcludedFromBackup = true
         var mutable = dir
         try? mutable.setResourceValues(excluded)
+        // The engine derives its memory budgets and the face-model folder (`<dir>/LightCraft/FaceModels`)
+        // from this; it must run before the first `LibraryHandle.open`.
+        configureRuntime(physicalMemory: ProcessInfo.processInfo.physicalMemory,
+                         supportDir: Self.supportDirectory.deletingLastPathComponent().path)
         let catalogDir = dir.appendingPathComponent("Catalog.lightcraftlibrary", isDirectory: true)
         do {
             catalog = try LibraryHandle.open(dir: catalogDir.path, seedDemo: false)

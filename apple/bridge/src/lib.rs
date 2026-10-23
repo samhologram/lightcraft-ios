@@ -12,6 +12,7 @@ use lightcraft_engine::Session;
 use serde_json::{Value, json};
 
 mod info;
+mod runtime;
 pub mod menus_src;
 pub mod params_doc;
 mod render;
@@ -149,6 +150,23 @@ pub struct RenderedImage {
     pub rgba: Vec<u8>,
 }
 
+/// What the engine's caches hold (for the `-LightCraftMemLog` diagnostics).
+#[derive(Default, uniffi::Record)]
+pub struct MemoryStats {
+    pub budget: u64,
+    pub cache_budget: u64,
+    pub cache_bytes: u64,
+    pub rendered_entries: u64,
+    pub rendered_bytes: u64,
+    pub thumb_source_bytes: u64,
+    pub preview_source_bytes: u64,
+    pub full_source_bytes: u64,
+    pub work_bytes: u64,
+    pub work_limit: u64,
+    pub gpu_allocated: u64,
+    pub gpu_pooled: u64,
+}
+
 struct Inner {
     session: Session,
     revision: u64,
@@ -204,7 +222,8 @@ fn parse_params(params_json: &str) -> Result<Value, BridgeError> {
 }
 
 impl LibraryHandle {
-    fn wrap(session: Session) -> Arc<Self> {
+    fn wrap(mut session: Session) -> Arc<Self> {
+        runtime::apply(&mut session);
         Arc::new(Self { inner: Mutex::new(Inner::new(session)) })
     }
 
@@ -301,8 +320,31 @@ impl LibraryHandle {
     pub fn disabled_reason(&self, id: String) -> Option<String> {
         self.guarded_or(Some("internal error".to_string()), |i| match lightcraft_engine::cmd::find_command(&id) {
             None => Some(format!("unknown command `{id}`")),
-            Some(spec) => (spec.enabled)(&i.session).err(),
+            Some(spec) => (spec.enabled)(&i.session).err().or_else(|| runtime::model_reason(&i.session, &id)),
         })
+    }
+
+    /// Engine cache sizes and the memory budget (diagnostics).
+    pub fn memory_stats(&self) -> MemoryStats {
+        self.guarded_or(MemoryStats::default(), |i| runtime::stats(&i.session))
+    }
+
+    /// Drop the engine's cached decodes and renders (memory warning); the budget is restored after.
+    pub fn trim_memory(&self) {
+        self.guarded_or((), |i| runtime::trim(&mut i.session));
+    }
+
+    /// Map normalized points `[x0, y0, x1, y1, ...]` of the stored, lens-corrected frame to the displayed
+    /// (transformed) frame of photo `id`'s current settings. Returns the input unchanged on any error.
+    pub fn map_points_to_display(&self, id: u64, points: Vec<f64>) -> Vec<f64> {
+        let fallback = points.clone();
+        self.guarded_or(fallback, |i| runtime::map_points(&i.session, id, &points, true))
+    }
+
+    /// Inverse of `map_points_to_display`: displayed (transformed) frame to the lens-corrected frame.
+    pub fn map_points_from_display(&self, id: u64, points: Vec<f64>) -> Vec<f64> {
+        let fallback = points.clone();
+        self.guarded_or(fallback, |i| runtime::map_points(&i.session, id, &points, false))
     }
 
     pub fn undo(&self) -> Result<String, BridgeError> {
@@ -493,4 +535,12 @@ pub fn develop_controls() -> Vec<ControlInfo> {
 #[uniffi::export]
 pub fn engine_version() -> String {
     format!("lightcraft-apple {}", env!("CARGO_PKG_VERSION"))
+}
+
+/// Call once at launch, before opening a library: `physical_memory` is `ProcessInfo.physicalMemory`
+/// (sizes the engine's memory budget for this device), `support_dir` the Application Support folder
+/// (face models live in `<support_dir>/LightCraft/FaceModels`). Applies to sessions opened afterwards.
+#[uniffi::export]
+pub fn configure_runtime(physical_memory: u64, support_dir: String) {
+    runtime::configure(physical_memory, &support_dir);
 }

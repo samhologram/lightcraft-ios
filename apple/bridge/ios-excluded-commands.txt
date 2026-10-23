@@ -1,18 +1,22 @@
 # id<TAB>reason. Commands that cannot work on iOS/iPadOS. Be conservative: only what truly cannot work.
 app.quit	iOS apps do not quit themselves
 app.showInFinder	no Finder on iOS
-app.showInFolders	no file manager to reveal a file in; the library is a Files package
+app.showInFolders	no file manager to reveal a photo in: photos live in the Photos library
 app.openLogFolder	no user-visible log folder on iOS
 app.openSamModelFolder	no user-visible model folder on iOS
-app.newLibrary	libraries are documents: New Document in the launch scene
-app.openLibrary	libraries are documents: opened from the launch scene or Files
-app.recentLibraries	the document browser lists recent libraries
-app.clearRecentLibraries	the document browser lists recent libraries
+app.newLibrary	no library documents: the app edits the device Photos library in place (engine catalog is an internal cache)
+app.openLibrary	no library documents: the app edits the device Photos library in place (engine catalog is an internal cache)
+app.recentLibraries	there is a single library, the device Photos library: no recent list
+app.clearRecentLibraries	there is a single library, the device Photos library: no recent list
 app.displayProfile	no per-display ICC profile selection on iOS
-file.backupLibrary	the library is a Files package: back it up with iCloud or Files
-file.restoreLibrary	the library is a Files package: restore it with iCloud or Files
+file.backupLibrary	the engine catalog is a rebuildable cache of the Photos library, which iCloud Photos and device backups protect
+file.restoreLibrary	the engine catalog is a rebuildable cache of the Photos library: nothing to restore
 file.addFromDevice	no mounted cameras or cards (DCIM volumes) on iOS: use Photos or Files import
 library.devices	no mounted cameras or cards (DCIM volumes) on iOS
 photo.editExternal	no external editors on iOS
 export.addToPhotos	drives the Photos app via osascript (macOS only): use the share sheet
 export.photosImports	drives the Photos app via osascript (macOS only)
+dialog.smartAlbum	desktop dialog with no iOS sheet yet: smart albums are not offered on iOS (Photos has its own)
+dialog.newSmartAlbum	desktop dialog with no iOS sheet yet: smart albums are not offered on iOS (Photos has its own)
+dialog.print	desktop print dialog with no iOS equivalent yet: use the share sheet
+dialog.contactSheet	desktop PDF contact-sheet dialog with no iOS equivalent yet: use the share sheet

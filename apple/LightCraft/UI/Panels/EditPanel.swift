@@ -17,6 +17,7 @@ struct EditPanel: View {
         "mixer", "grading", "calibration", "curve", "bwMix",
     ]
     private static let bands = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"]
+    // Kept: HSL band swatches show the actual hue being edited, not UI chrome.
     private static let bandTints: [Color] = [
         Color(red: 0.88, green: 0.25, blue: 0.23), Color(red: 0.91, green: 0.54, blue: 0.19),
         Color(red: 0.91, green: 0.82, blue: 0.23), Color(red: 0.25, green: 0.69, blue: 0.31),

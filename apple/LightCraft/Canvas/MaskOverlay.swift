@@ -40,6 +40,7 @@ struct MaskOverlay: View {
                     p.move(to: start)
                     p.addLine(to: current)
                 }
+                // Kept: mask overlay colours must stand out against arbitrary photo content.
                 .stroke(Color.yellow, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                 Circle().fill(Color.yellow).frame(width: 10, height: 10).position(start)
                 Circle().stroke(Color.yellow, lineWidth: 2).frame(width: 10, height: 10).position(current)
