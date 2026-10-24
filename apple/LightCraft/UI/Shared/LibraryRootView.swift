@@ -33,6 +33,36 @@ struct LibraryRootView: View {
             .onChange(of: pad, initial: true) { _, new in phoneLayout = !new }
         }
         .focusedSceneValue(\.libraryModel, model)
+        .statusBarHidden(model.canvasOnly)
+        .persistentSystemOverlays(model.canvasOnly ? .hidden : .automatic)
+        .overlay(alignment: .topTrailing) {
+            if model.canvasOnly {
+                Button {
+                    withAnimation { model.canvasOnly = false }
+                } label: {
+                    Label("Exit Full Screen", systemImage: "arrow.down.right.and.arrow.up.left")
+                        .labelStyle(.iconOnly)
+                        .font(.body.weight(.semibold))
+                        .padding(6)
+                }
+                .buttonStyle(.glass)
+                .padding(12)
+                .accessibilityLabel("Exit Full Screen")
+                .accessibilityIdentifier("control.fullscreen.exit")
+                .transition(.opacity)
+            }
+        }
+        .background {
+            if model.canvasOnly {
+                // Esc leaves the canvas-only view (hardware keyboard).
+                Button("Exit Full Screen") { withAnimation { model.canvasOnly = false } }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .background {
             Color.clear.fileImporter(isPresented: $model.showPresetImporter, allowedContentTypes: LibraryModel.presetContentTypes, allowsMultipleSelection: true) { result in
                 if case .success(let urls) = result {
@@ -134,6 +164,20 @@ struct LibraryRootView: View {
     }
 
     // MARK: Import
+}
+
+/// Toolbar button that enters the full-screen canvas (loupe only).
+struct FullScreenButton: View {
+    let model: LibraryModel
+
+    var body: some View {
+        Button {
+            withAnimation { model.canvasOnly = true }
+        } label: {
+            Label("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right")
+        }
+        .accessibilityIdentifier("control.fullscreen")
+    }
 }
 
 /// Zero-size, invisible buttons that give a hardware keyboard the desktop's single-key shortcuts

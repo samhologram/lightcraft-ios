@@ -24,8 +24,12 @@ struct PadLibraryView: View {
             .navigationTitle(model.mode == .loupe ? (model.activePhoto?.fileName ?? "Photo") : SourceMenuContent.currentTitle(model: model))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: model.canvasOnly) { _, on in
+            if on { withAnimation { columns = .detailOnly } }
+        }
         .onChange(of: model.mode) { _, mode in
             withAnimation { columns = mode == .loupe ? .detailOnly : .all }
             if mode == .loupe { selecting = false }
@@ -92,13 +96,18 @@ struct PadLibraryView: View {
             HStack(spacing: 0) {
                 LoupeView(model: model)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                PanelSwitcher(model: model)
+                if !model.canvasOnly { PanelSwitcher(model: model) }
             }
-            Filmstrip(model: model)
-            RatingFlagBar(model: model)
-                .padding(.vertical, 6)
+            if !model.canvasOnly {
+                Filmstrip(model: model)
+                RatingFlagBar(model: model)
+                    .padding(.vertical, 6)
+            }
         }
-        .inspector(isPresented: $model.inspectorVisible) {
+        .inspector(isPresented: Binding(
+            get: { model.inspectorVisible && !model.canvasOnly },
+            set: { if !model.canvasOnly { model.inspectorVisible = $0 } }
+        )) {
             PanelHost(model: model)
                 .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
         }
@@ -136,6 +145,7 @@ struct PadLibraryView: View {
                 }
                 .accessibilityIdentifier("grid.select")
             }
+            if model.mode == .loupe { FullScreenButton(model: model) }
             UndoRedoButtons(model: model)
             ShareButton(model: model)
             PaletteButton(model: model)

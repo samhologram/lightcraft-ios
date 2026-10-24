@@ -41,4 +41,44 @@ final class LightCraftUITests: LightCraftUITestCase {
         pause(2)
         shot("05-back-to-grid")
     }
+
+    /// Full-screen canvas: enter from the loupe, only the canvas and the exit button remain, exit restores the layout.
+    func testFullScreenCanvas() throws {
+        launchDemo(dark: false)
+        defer { flushNotes("fullscreen-notes") }
+        openNewDemoLibrary()
+
+        let firstPhoto = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'photo.'")).firstMatch
+        let named = element("photo.0")
+        if named.waitForExistence(timeout: 10) {
+            named.tap()
+        } else if firstPhoto.waitForExistence(timeout: 10) {
+            note("photo.0 not found, opened the first photo.<id> cell")
+            firstPhoto.tap()
+        } else {
+            XCTFail("no photo cell to open")
+            return
+        }
+        XCTAssertTrue(element("loupe").waitForExistence(timeout: 20), "loupe not shown")
+        pause(2)
+        if !isPad { ensureEditPanelOpen() }
+
+        XCTAssertTrue(element("control.fullscreen").waitForExistence(timeout: 10), "control.fullscreen missing")
+        element("control.fullscreen").tap()
+
+        XCTAssertTrue(element("control.fullscreen.exit").waitForExistence(timeout: 10), "control.fullscreen.exit missing")
+        XCTAssertTrue(waitForGone("panel.edit", timeout: 10), "panel.edit still visible in full screen")
+        XCTAssertTrue(element("loupe").exists, "canvas missing in full screen")
+        XCTAssertFalse(element("control.fullscreen").exists, "toolbar button still visible in full screen")
+        for id in ["filmstrip", "control.light.exposure", "mode.grid"] where element(id).exists {
+            XCTFail("\(id) still visible in full screen")
+        }
+        if isPad && element("album.all").exists { note("sidebar item album.all still visible in full screen") }
+        shot("fullscreen-on")
+
+        element("control.fullscreen.exit").tap()
+        XCTAssertTrue(element("panel.edit").waitForExistence(timeout: 10), "panel.edit did not return after exit")
+        XCTAssertTrue(waitForGone("control.fullscreen.exit", timeout: 10), "exit button still visible")
+        shot("fullscreen-off")
+    }
 }

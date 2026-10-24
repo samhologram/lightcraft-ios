@@ -107,6 +107,10 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   View, Stage Manager. Order the degradation: full layout → denser (smaller controls, icons only, merged groups) →
   collapse into a menu or sheet → scroll as the last resort. Never let a control silently fall off screen. Labels in
   chips and buttons never wrap mid-word (`lineLimit(1)`, `ViewThatFits` falling back to icons).
+- Full-screen canvas mode in every app (iPad and iPhone): a toolbar button and View-menu command (⌃⌘F) hide every
+  panel, sidebar, inspector, tool strip and toolbar plus the status bar/home indicator, leaving only the canvas
+  (viewer for video, loupe for photos) with its gestures. One small floating Liquid Glass button (corner, safe area)
+  returns to the standard layout; Esc also exits. Ids `control.fullscreen` / `control.fullscreen.exit`.
 - Show controls under the same conditions as the desktop (mode-dependent sections, e.g. HDR-only or B&W-only sliders);
   read the desktop panel code for the rule.
 - Every interactive element has a stable accessibility identifier derived from its model id (`tool.<id>`,
@@ -195,5 +199,8 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   --project-root apple` → `xcodebuild … -destination id=<device> -allowProvisioningUpdates
   -allowProvisioningDeviceRegistration DEVELOPMENT_TEAM=<team>` → `devicectl device install app` + `process launch`.
   Pass the team on the command line, never commit it. Personal Team apps expire after 7 days; reinstall.
+  First time per Mac/team/bundle id: an agent's command-line build can't reach the Apple ID in the keychain ("No
+  Accounts"), so the user runs the generated project once from Xcode (⌘R on the device) to create the certificate
+  and profiles; command-line installs work after that. Developer Mode must be on (Settings → Privacy & Security).
 - Install on a device only an app that passed its latest simulator smoke test ("if functional").
 - A device build is CPU work: give it a slot in `.build.priority` like any other build.

@@ -14,8 +14,8 @@ struct PhoneLibraryView: View {
 
     private var panelSheetShown: Binding<Bool> {
         Binding(
-            get: { model.mode == .loupe && model.inspectorVisible },
-            set: { model.inspectorVisible = $0 }
+            get: { model.mode == .loupe && model.inspectorVisible && !model.canvasOnly },
+            set: { if !model.canvasOnly { model.inspectorVisible = $0 } }
         )
     }
 
@@ -35,6 +35,7 @@ struct PhoneLibraryView: View {
             .navigationTitle(model.mode == .loupe ? (model.activePhoto?.fileName ?? "Photo") : "")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .sheet(isPresented: panelSheetShown) {
             PanelHost(model: model, showsSwitcher: true)
@@ -90,7 +91,7 @@ struct PhoneLibraryView: View {
             )
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 // The panel sheet has its own panel strip and covers this one.
-                if !panelSheetShown.wrappedValue {
+                if !panelSheetShown.wrappedValue && !model.canvasOnly {
                     VStack(spacing: 4) {
                         RatingFlagBar(model: model, compact: true)
                         ToolStrip(model: model)
@@ -116,6 +117,7 @@ struct PhoneLibraryView: View {
                 .accessibilityIdentifier("mode.grid")
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                FullScreenButton(model: model)
                 UndoRedoButtons(model: model)
                 ShareButton(model: model)
                 OverflowMenu(model: model)

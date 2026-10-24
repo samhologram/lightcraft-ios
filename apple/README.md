@@ -42,6 +42,7 @@ Conventions taken from the references:
 9. **Pinch to zoom, double-tap toggles fit / 100 %**, one-finger pan when zoomed.
 10. **Top bar**: back to grid, undo / redo, share (export; Save to Photos adds a copy), and a "…" overflow menu with
     Revert and the full Photo menu.
+11a. **Full-screen canvas**: the loupe's Full Screen button (or View > Enter Full Screen Canvas, ⌃⌘F) hides every panel, bar and strip so only the photo remains; one floating glass button (or Esc) returns to the standard layout.
 11. **Filmstrip** under the loupe on iPad to move between photos; swipe left/right on iPhone.
 12. **Rating and flag** in the loupe's bottom bar and in each grid cell's context menu.
 13. Masking: create a mask from a tool (Brush, Linear, Radial, Subject, Sky…), the mask list in the panel, the effect

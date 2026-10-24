@@ -257,6 +257,14 @@ struct LibraryCommands: Commands {
     @CommandsBuilder private var viewCommands: some Commands {
         CommandGroup(after: .toolbar) {
             MenuEntries(model: model, entries: MenuLayout.entries(for: "View"))
+            Divider()
+            // UI-only (no engine command): toggles the model's canvas-only flag, only with a photo open.
+            Button(model?.canvasOnly == true ? String(localized: "Exit Full Screen Canvas") : String(localized: "Enter Full Screen Canvas")) {
+                model?.canvasOnly.toggle()
+            }
+            .keyboardShortcut("f", modifiers: [.control, .command])
+            .disabled(model?.mode != .loupe)
+            .accessibilityIdentifier("control.fullscreen.menu")
         }
     }
 

@@ -23,8 +23,13 @@ final class LibraryModel {
     }
     var activeTool: Tool?
     var mode: Mode = .grid {
-        didSet { if oldValue == .loupe && mode != .loupe { commitEdits() } }
+        didSet {
+            if oldValue == .loupe && mode != .loupe { commitEdits() }
+            if mode != .loupe { canvasOnly = false }
+        }
     }
+    /// Full-screen canvas: only the photo is shown (no panels, sidebar, bars). UI-only; the loupe resets it.
+    var canvasOnly = false
     /// Shown as an alert with the full message.
     var lastError: String?
     /// A one-off informational message (alert), e.g. the preset import summary.

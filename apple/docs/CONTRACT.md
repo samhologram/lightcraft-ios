@@ -291,6 +291,10 @@ popovers, sheets), `control.<controlId>` (develop sliders), `section.<sectionId>
 (grid cells), `album.<id>`, `mode.grid`, `mode.loupe`, `loupe`, `demoReady` (hidden marker element,
 present once demo seeding finished), `import`, `filmstrip`.
 
+Full-screen canvas (UI-only, `LibraryModel.canvasOnly`; no engine command): the loupe toolbar button is
+`control.fullscreen` ("Full Screen"), the floating glass button shown while only the canvas is visible is
+`control.fullscreen.exit` ("Exit Full Screen"); the View-menu item is `control.fullscreen.menu` (⌃⌘F, Esc also exits).
+
 Guided Upright: the tool-strip button is `tool.guidedUpright`; the Crop panel's shortcut button that opens it is
 `control.guidedUpright.open` (identifiers are unique). Once active, the overlay surface is
 `tool.guidedUpright.overlay` and each guide is `control.guidedUpright.guide.<n>` (n = 0-based index; actions
