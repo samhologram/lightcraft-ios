@@ -199,8 +199,9 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   --project-root apple` → `xcodebuild … -destination id=<device> -allowProvisioningUpdates
   -allowProvisioningDeviceRegistration DEVELOPMENT_TEAM=<team>` → `devicectl device install app` + `process launch`.
   Pass the team on the command line, never commit it. Personal Team apps expire after 7 days; reinstall.
-  First time per Mac/team/bundle id: an agent's command-line build can't reach the Apple ID in the keychain ("No
-  Accounts"), so the user runs the generated project once from Xcode (⌘R on the device) to create the certificate
-  and profiles; command-line installs work after that. Developer Mode must be on (Settings → Privacy & Security).
+  "No Accounts" from an agent's xcodebuild = the sandboxed shell can't read the Apple ID token in the login keychain;
+  signing builds need the shell sandbox off (a permission the user approves). The Apple ID must be signed in to
+  Xcode → Settings → Accounts (quit Xcode with ⌘Q so it saves). Developer Mode on (Settings → Privacy & Security).
+  Keep the device build dirs and a reinstall script so the 7-day re-sign is one command.
 - Install on a device only an app that passed its latest simulator smoke test ("if functional").
 - A device build is CPU work: give it a slot in `.build.priority` like any other build.
