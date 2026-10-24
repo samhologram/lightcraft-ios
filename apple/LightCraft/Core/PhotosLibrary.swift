@@ -428,7 +428,7 @@ final class PhotosLibrary {
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = true
         try await Self.writeResource(Unchecked(value: resource), to: url, options: options)
-        if let type = UTType(resource.uniformTypeIdentifier), type.conforms(to: .heif) || type.conforms(to: .heic) {
+        if let type = UTType(resource.uniformTypeIdentifier), Self.needsNativeDecode(type) {
             let tiff = try await Task.detached(priority: .userInitiated) { try Self.transcodeHEIF(url) }.value
             try? FileManager.default.removeItem(at: url)
             return tiff
@@ -439,19 +439,34 @@ final class PhotosLibrary {
     /// The engine ships without an HEVC decoder (patents: upstream leaves it to the distributor), so HEIC/HEIF
     /// originals are decoded by iOS's own licensed decoder and handed to the engine as a 16-bit TIFF in the
     /// photo's colour space, with its metadata (EXIF, orientation) carried over. LZW keeps the file smaller.
-    nonisolated static func transcodeHEIF(_ url: URL) throws -> URL {
+    nonisolated static func transcodeHEIF(_ url: URL) throws -> URL { try transcodeToTIFF(url) }
+
+    /// Non-RAW formats the engine has no decoder for in this build (`crates/codecs/src/sniff.rs`: HEIF needs
+    /// HEVC, AVIF has no AV1 decoder); iOS decodes them natively and hands the engine a TIFF. JPEG, PNG,
+    /// TIFF, WebP, BMP, GIF, PSD and RAW stay with the engine (RAW must be re-read non-destructively).
+    nonisolated static func needsNativeDecode(_ type: UTType) -> Bool {
+        if type.conforms(to: .rawImage) { return false }
+        if type.conforms(to: .heif) || type.conforms(to: .heic) { return true }
+        if let avif = UTType("public.avif"), type.conforms(to: avif) { return true }
+        if let avis = UTType("public.avis"), type.conforms(to: avis) { return true }
+        return false
+    }
+
+    /// ImageIO decode of any format iOS reads, written as a 16-bit LZW TIFF beside `url` (orientation,
+    /// colour profile and EXIF kept).
+    nonisolated static func transcodeToTIFF(_ url: URL) throws -> URL {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldAllowFloat: true] as CFDictionary) else {
-            throw error("iOS could not decode this HEIC photo.")
+            throw error("iOS could not decode this photo.")
         }
         let space = image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.displayP3) ?? CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 16,
                                       bytesPerRow: 0, space: space,
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.byteOrder16Little.rawValue) else {
-            throw error("Not enough memory to convert this HEIC photo.")
+            throw error("Not enough memory to convert this photo.")
         }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        guard let deep = context.makeImage() else { throw error("Not enough memory to convert this HEIC photo.") }
+        guard let deep = context.makeImage() else { throw error("Not enough memory to convert this photo.") }
         let out = url.deletingPathExtension().appendingPathExtension("tif")
         try? FileManager.default.removeItem(at: out)
         guard let destination = CGImageDestinationCreateWithURL(out as CFURL, UTType.tiff.identifier as CFString, 1, nil) else {
@@ -459,6 +474,9 @@ final class PhotosLibrary {
         }
         var properties = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]) ?? [:]
         properties[kCGImagePropertyTIFFDictionary] = [kCGImagePropertyTIFFCompression: 5]   // LZW
+        // The source's depth (usually 8) would make the writer downconvert the 16-bit image.
+        properties[kCGImagePropertyDepth] = nil
+        properties[kCGImagePropertyHasAlpha] = nil
         CGImageDestinationAddImage(destination, deep, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw error("Could not write the converted photo.") }
         return out
@@ -557,6 +575,91 @@ final class PhotosLibrary {
                 PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: options)
             }
         }
+    }
+
+    // MARK: Import (Files, drop, paste)
+
+    /// What an imported file is.
+    enum MediaKind: Sendable, Equatable {
+        case sidecar
+        case photo(raw: Bool)        // Photos takes it as is
+        case convertible             // iOS decodes it, Photos does not store it: converted to TIFF first
+        case unsupported
+    }
+
+    nonisolated private static let rawExtensions: Set<String> = [
+        "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf", "rw2", "pef", "srw", "3fr", "iiq", "erf", "mrw", "x3f", "rwl", "dcr", "kdc",
+    ]
+
+    nonisolated static func mediaKind(of url: URL) -> MediaKind {
+        let ext = url.pathExtension.lowercased()
+        if ext == "xmp" { return .sidecar }
+        let type = UTType(filenameExtension: ext)
+        if rawExtensions.contains(ext) || type?.conforms(to: .rawImage) == true { return .photo(raw: true) }
+        if let type, type.conforms(to: .jpeg) || type.conforms(to: .png) || type.conforms(to: .tiff)
+            || type.conforms(to: .heic) || type.conforms(to: .heif) || type.conforms(to: .gif) {
+            return .photo(raw: false)
+        }
+        if let type, type.conforms(to: .image), let source = CGImageSourceCreateWithURL(url as CFURL, nil), CGImageSourceGetCount(source) > 0 {
+            return .convertible
+        }
+        return .unsupported
+    }
+
+    /// One Photos asset to create: `primary` is the `.photo` resource, `alternate` the RAW of a RAW+JPEG pair.
+    struct MediaImportItem: Sendable {
+        var primary: URL
+        var alternate: URL?
+        /// Lower-cased base name and full file name of the (RAW) original, for XMP sidecar matching.
+        var stem: String
+        var fullName: String
+        var sidecar: URL?
+        var displayName: String { (alternate ?? primary).lastPathComponent }
+    }
+
+    private final class CreatedID: @unchecked Sendable { var id: String? }
+
+    /// True when LightCraft may add photos (asks the first time).
+    func ensureAddAccess() async -> Bool {
+        var access = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        if access == .notDetermined { access = await PHPhotoLibrary.requestAuthorization(for: .addOnly) }
+        return access == .authorized || access == .limited
+    }
+
+    /// Adds the file(s) to the Photos library (copying them: `shouldMoveFile = false`), into the user album
+    /// `albumID` when given, and returns the new asset's local identifier.
+    func addToLibrary(_ item: MediaImportItem, albumID: String?) async throws -> String {
+        try await Self.createAsset(item, albumID: albumID)
+    }
+
+    nonisolated private static func createAsset(_ item: MediaImportItem, albumID: String?) async throws -> String {
+        let created = CreatedID()
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetCreationRequest.forAsset()
+            let main = PHAssetResourceCreationOptions()
+            main.originalFilename = item.primary.lastPathComponent
+            main.shouldMoveFile = false
+            request.addResource(with: .photo, fileURL: item.primary, options: main)
+            if let alternate = item.alternate {
+                let alt = PHAssetResourceCreationOptions()
+                alt.originalFilename = alternate.lastPathComponent
+                alt.shouldMoveFile = false
+                request.addResource(with: .alternatePhoto, fileURL: alternate, options: alt)
+            }
+            created.id = request.placeholderForCreatedAsset?.localIdentifier
+            if let albumID, let placeholder = request.placeholderForCreatedAsset,
+               let album = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumID], options: nil).firstObject {
+                PHAssetCollectionChangeRequest(for: album)?.addAssets([placeholder] as NSArray)
+            }
+        }
+        guard let id = created.id else { throw error("Photos did not create the photo.") }
+        return id
+    }
+
+    /// The user album the grid shows (smart albums and the library itself cannot take new photos).
+    var currentUserAlbum: (id: String, title: String)? {
+        guard let source = current, source.group == .album, case .collection(let id) = source.kind else { return nil }
+        return (id, source.title)
     }
 
     nonisolated static func error(_ message: String) -> NSError {

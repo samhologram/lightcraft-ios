@@ -2,7 +2,7 @@ import SwiftUI
 @preconcurrency import LightCraftKit
 
 /// Red Eye: corrections of the active photo. Corrections are placed on the eye in the photo; the
-/// button below adds one at the centre as a starting point (the pupil inside is found automatically).
+/// Add button in the panel header adds one at the centre as a starting point (the pupil inside is found automatically).
 struct RedEyePanel: View {
     let model: LibraryModel
 
@@ -14,7 +14,7 @@ struct RedEyePanel: View {
     }
 
     @State private var eyes: [EyeRow] = []
-    @State private var pet = false
+    @AppStorage("redeye.pet") private var pet = false
 
     var body: some View {
         if model.activePhoto == nil {
@@ -24,14 +24,6 @@ struct RedEyePanel: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Toggle("Pet eye", isOn: $pet)
                         .accessibilityIdentifier("redeye.pet")
-                    Button {
-                        model.run("redeye.add", ["center": [0.5, 0.5], "rx": 0.03, "ry": 0.03, "pet": pet])
-                    } label: {
-                        Label("Add Correction", systemImage: "plus.circle")
-                    }
-                    .buttonStyle(.glass)
-                    .disabled(!model.isEnabled("redeye.add"))
-                    .accessibilityIdentifier("command.redeye.add")
                     Text("Corrections").font(.headline)
                     if eyes.isEmpty {
                         Text("No corrections yet.").font(.footnote).foregroundStyle(.secondary)

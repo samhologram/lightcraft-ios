@@ -50,14 +50,6 @@ struct CropPanel: View {
                         .buttonStyle(.glass)
                         .accessibilityIdentifier("control.guidedUpright.open")
                         Spacer()
-                        Button(role: .destructive) {
-                            model.run("crop.reset")
-                        } label: {
-                            Label("Reset Crop", systemImage: "arrow.counterclockwise")
-                        }
-                        .buttonStyle(.glass)
-                        .disabled(!model.isEnabled("crop.reset"))
-                        .accessibilityIdentifier("command.crop.reset")
                     }
                 }
                 .padding(16)

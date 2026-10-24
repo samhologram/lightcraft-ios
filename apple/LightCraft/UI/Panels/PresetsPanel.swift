@@ -41,26 +41,11 @@ struct PresetsPanel: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("presets.search")
-                Button {
-                    model.present("preset.create")
-                } label: {
-                    Label("Create", systemImage: "plus")
-                }
-                .buttonStyle(.glass)
-                .disabled(model.activePhoto == nil)
-                .accessibilityIdentifier("command.preset.create")
-                Button {
-                    model.runUI("file.importPresets")
-                } label: {
-                    Label("Import Presets…", systemImage: "square.and.arrow.down")
-                }
-                .buttonStyle(.glass)
-                .accessibilityIdentifier("command.file.importPresets")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             if presets.isEmpty {
-                PanelEmptyState(title: "No Presets", symbol: "wand.and.stars", message: "Create a preset from the current edit.")
+                PanelEmptyState(title: "No Presets", symbol: "wand.and.stars", message: "Create a preset from the current edit with the + in the panel header.")
             } else {
                 List {
                     ForEach(groups, id: \.title) { group in

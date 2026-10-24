@@ -293,14 +293,38 @@ class TourTestCase: LightCraftUITestCase {
 
     // MARK: Photo and panels
 
+    /// Identifiers the editor exposes once a photo is open (grid-only chrome is excluded on purpose):
+    /// the loupe container, its Full Screen button, the iPad panel switcher, the iPad Exposure slider.
+    static let loupeSignals = ["loupe", "control.fullscreen", "panelSwitcher", "control.light.exposure"]
+
+    /// The first loupe signal on screen, or nil. A plain existence check: the loupe container alone can be
+    /// missing from the accessibility tree while the editor is open (that was a false "could not open").
+    func loupeSignal() -> String? {
+        for id in Self.loupeSignals where element(id).exists { return id }
+        return nil
+    }
+
+    /// Waits up to `timeout` s (default and cap 20 s) for any loupe signal; records which one it found.
+    func waitForLoupe(timeout: TimeInterval = 20) -> Bool {
+        let deadline = Date().addingTimeInterval(min(timeout, 20))
+        repeat {
+            if let id = loupeSignal() {
+                note("loupe open, found '\(id)'")
+                return true
+            }
+            pause(0.5)
+        } while Date() < deadline
+        return false
+    }
+
     @discardableResult
     func openFirstPhoto() -> Bool {
-        if element("loupe").exists { return true }
+        if loupeSignal() != nil { return true }
         let deadline = Date().addingTimeInterval(waitCap)
         while Date() < deadline && !overBudget {
             if let cell = hit(prefix: "photo.") {
                 cell.tap()
-                return element("loupe").waitForExistence(timeout: waitCap)
+                return waitForLoupe()
             }
             pause(1)
         }

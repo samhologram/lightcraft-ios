@@ -145,5 +145,18 @@ private struct PaletteRow: View {
         }
         .disabled(why != nil)
         .accessibilityIdentifier("command.\(entry.id)")
+        .contextMenu {
+            Button(action: action) { Label("Run", systemImage: "play") }
+                .disabled(why != nil)
+                .accessibilityIdentifier("palette.run.\(entry.id)")
+            Button { UIPasteboard.general.string = entry.label } label: { Label("Copy Name", systemImage: "doc.on.doc") }
+                .accessibilityIdentifier("palette.copyName.\(entry.id)")
+            Button { UIPasteboard.general.string = entry.id } label: { Label("Copy Command ID", systemImage: "number") }
+                .accessibilityIdentifier("palette.copyID.\(entry.id)")
+            if let shortcut = entry.shortcut {
+                Button { UIPasteboard.general.string = shortcut } label: { Label("Copy Shortcut", systemImage: "command") }
+                    .accessibilityIdentifier("palette.copyShortcut.\(entry.id)")
+            }
+        }
     }
 }

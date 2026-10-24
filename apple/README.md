@@ -55,6 +55,41 @@ Per-idiom degradation (iPad windows are resizable): full layout (sidebar + grid 
 sheet when the window is narrower than 700 pt → iPhone layout (tool strip + sheets) in compact width. Nothing falls off
 screen: tool strips scroll as the last resort.
 
+### Round 7 UX (in progress)
+
+Status: **round 7, in progress** (contract: `docs/CONTRACT.md` §6).
+
+- **Panels like the desktop**: every panel opens from the panel switcher, the Panels menu and the Window menu; on iPad
+  the inspector's sections collapse, hide and reorder (arrangement remembered); iPhone shows sheets. Panel actions sit
+  in the panel header.
+- **iPad menu bar** merges the iPadOS groups with the desktop menus in desktop order, Window and Help last.
+- **Hyper-productive**: frequent actions within 1 tap of the loupe; every desktop shortcut incl. Lightroom's single
+  keys (P X U 0-5 R D G E, arrows, `\`); ⌘K palette; two-finger tap undo, three-finger tap redo; scrubbable sliders
+  with exact entry; context menus; customizable toolbar; last panel and layout remembered; multiple windows. Clean:
+  system components, SF Symbols, semantic colours, one primary action per area.
+- **Import media**: Files / iCloud / providers (RAW, DNG, TIFF, JPEG, PNG, HEIC + XMP sidecars) are added into the Photos
+  library; drag and drop and paste; entry points: grid toolbar Import, File ▸ Import Photos…, ⌘K, empty state.
+- **Native decoders**: PhotoKit / ImageIO for thumbnails, previews and non-RAW formats (HEIC via ImageIO: done); the
+  engine decodes RAW originals.
+
+### Top 10 workflows: taps-to-do
+
+Taps counted from the open loupe on iPad (hardware-keyboard keys in brackets). "Target" is the round-7 goal; "Measured"
+is filled in by the feature pass.
+
+| # | Workflow | Target taps | Measured |
+|---|---|---|---|
+| 1 | Cull: rate and flag a photo, go to next | 1 per action (rating/flag in bottom bar; 5, P/X, →) | |
+| 2 | Open a photo and auto-tone | 2 (tap photo, Auto) | |
+| 3 | Adjust exposure | 2 (Edit panel is the default, drag slider; exact entry +1) | |
+| 4 | Crop and straighten | 2 (Crop, drag/angle) + 1 to leave | |
+| 5 | Apply a preset | 3 (Presets, preset; Panels menu if hidden) | |
+| 6 | Copy settings and paste on the next photo | 3 (Copy via menu or ⌘⇧C, next, Paste) | |
+| 7 | Remove a spot | 3 (Remove, tap spot, Done) | |
+| 8 | Export / share | 2 (Share, destination) | |
+| 9 | Revert | 2 ("…" menu, Revert) | |
+| 10 | Compare before / after | 1 (press and hold, or `\`) | |
+
 ### Known gaps on iOS
 
 - **Smart Album / New Smart Album, Print, Contact Sheet** dialogs are not available yet (no iOS equivalent built;

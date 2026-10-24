@@ -74,6 +74,70 @@ struct LoupeView: View {
         .background(Color.clear.contentShape(Rectangle())) // Kept: invisible hit-testing surface.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("loupe")
+        .desktopShortcuts(model: model)
+        .multiFingerUndoRedo(model: model)
+        .toolbar(id: "loupe.toolbar") { loupeToolbar }
+    }
+
+    // MARK: Customizable toolbar (iPad: long-press the toolbar, or Customize Toolbar in the menu)
+
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    @ToolbarContentBuilder
+    private var loupeToolbar: some CustomizableToolbarContent {
+        ToolbarItem(id: "loupe.beforeAfter", placement: .primaryAction) {
+            Button { model.runUI("view.showOriginal") } label: {
+                Label("Before / After", systemImage: "square.split.2x1")
+            }
+            .disabled(model.activePhoto == nil)
+            .accessibilityIdentifier("toolbar.beforeAfter")
+        }
+        .defaultCustomization(isPad ? .visible : .hidden)
+        ToolbarItem(id: "loupe.zoom", placement: .primaryAction) {
+            Button { model.runUI("view.zoomToggle") } label: {
+                Label(model.zoomToFit ? "Zoom 100%" : "Zoom to Fit",
+                      systemImage: model.zoomToFit ? "plus.magnifyingglass" : "arrow.up.left.and.down.right.magnifyingglass")
+            }
+            .disabled(model.activePhoto == nil)
+            .accessibilityIdentifier("toolbar.zoom")
+        }
+        .defaultCustomization(isPad ? .visible : .hidden)
+        ToolbarItem(id: "loupe.pick", placement: .primaryAction) {
+            Button { model.run("photo.pick") } label: { Label("Pick", systemImage: "flag.fill") }
+                .disabled(!model.isEnabled("photo.pick"))
+                .accessibilityIdentifier("toolbar.pick")
+        }
+        .defaultCustomization(.hidden)
+        ToolbarItem(id: "loupe.reject", placement: .primaryAction) {
+            Button { model.run("photo.reject") } label: { Label("Reject", systemImage: "flag.slash.fill") }
+                .disabled(!model.isEnabled("photo.reject"))
+                .accessibilityIdentifier("toolbar.reject")
+        }
+        .defaultCustomization(.hidden)
+        ToolbarItem(id: "loupe.rotateLeft", placement: .primaryAction) {
+            Button { model.run("photo.rotateLeft") } label: { Label("Rotate Left", systemImage: "rotate.left") }
+                .disabled(!model.isEnabled("photo.rotateLeft"))
+                .accessibilityIdentifier("toolbar.rotateLeft")
+        }
+        .defaultCustomization(.hidden)
+        ToolbarItem(id: "loupe.rotateRight", placement: .primaryAction) {
+            Button { model.run("photo.rotateRight") } label: { Label("Rotate Right", systemImage: "rotate.right") }
+                .disabled(!model.isEnabled("photo.rotateRight"))
+                .accessibilityIdentifier("toolbar.rotateRight")
+        }
+        .defaultCustomization(.hidden)
+        ToolbarItem(id: "loupe.auto", placement: .primaryAction) {
+            Button { model.present("develop.auto") } label: { Label("Auto Settings", systemImage: "wand.and.stars") }
+                .disabled(!model.isEnabled("develop.auto"))
+                .accessibilityIdentifier("toolbar.auto")
+        }
+        .defaultCustomization(.hidden)
+        ToolbarItem(id: "loupe.reset", placement: .primaryAction) {
+            Button { model.present("develop.reset") } label: { Label("Reset Edits", systemImage: "arrow.counterclockwise") }
+                .disabled(!model.isEnabled("develop.reset"))
+                .accessibilityIdentifier("toolbar.reset")
+        }
+        .defaultCustomization(.hidden)
     }
 
     // MARK: Overlays

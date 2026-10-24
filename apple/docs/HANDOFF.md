@@ -1,52 +1,35 @@
 # Handoff: LightCraft for iPad and iPhone
 
-State on 2026-10-23, for whoever (person or agent, any platform) continues. Read `COOKBOOK.md` (the recipe),
+State on 2026-10-24, for whoever (person or agent, any platform) continues. Read `COOKBOOK.md` (the recipe),
 `CONTRACT.md` (interfaces) and `../README.md` (UX direction, build) first.
 
 ## Where it stands
 
 | Area | State |
 |---|---|
-| Rust bridge (`bridge/`) | Done. `cargo test` + `clippy -D warnings` green; builds for `aarch64-apple-ios-sim`. |
-| Scripts | `build-xcframework.sh`, `check-command-ids.sh`, `tool-coverage.sh`, `feature-coverage.sh`, `sync-upstream.sh`, `run-ui-tests.sh` — all pass. |
-| App, first version | Runs on iOS 27 simulators: grid, loupe, Edit/Crop/Masking/… panels, generated menus, command palette. |
-| Layout fixes | Done: loupe fit margin, HDR-/B&W-conditional sliders, header and chip labels never wrap, denser iPad panel switcher, iPhone sheet keeps the photo visible. |
-| **Photos library as the library** | **In progress, builds, NOT verified on a simulator.** `App/LightCraftApp.swift` is a `WindowGroup`; `Core/PhotosLibrary.swift`, `Core/LibraryModel+Photos.swift`, `UI/Shared/PhotosGridView.swift`. `LightCraftDocument.swift` removed. |
-| **Lightroom preset import** | **In progress, builds, NOT verified.** `Core/LibraryModel+PresetImport.swift` (desktop's `file.importPresets` flow: `profile.import` for .cube/.zip/folders, `preset.import` for the rest). |
-| Coverage tours | Written (`LightCraftUITests/*Tour*.swift`). Panels and tools ran on the old document build; results in `docs/tour-summaries/`. The command tour never completed. |
+| Rust bridge (`bridge/`), scripts | Done and green (`cargo test`, `clippy -D warnings`, coverage scripts). |
+| Photos library as the library, preset import | Built and exercised on the iPad simulator (smoke green at round 6b). |
+| Large-library fixes | Done: windowed RAW scan, off-main album counts, debounced reloads. |
+| Memory | Done: memory budget and caches (suspect for the old ~15 min crash; watch on device). |
+| Cached originals | Done: relink after container moves; safe original swap. |
+| HEIC | Done: decoded through the iOS decoder (ImageIO, 16-bit TIFF to the engine). |
+| Full-screen canvas, tour and test fixes | Done: `control.fullscreen`; tour false negatives fixed (`TourSupport.openFirstPhoto` waits for any loupe signal, notes which one). |
+| iPad smoke | All green at round 6b. |
+| **Round 7** | **In progress** (three agents in parallel, spec: `CONTRACT.md` §6): panel system (switcher, Panels menu, collapsible/reorderable inspector sections), merged iPad menu bar, productivity (shortcuts, palette, gestures, scrubbable sliders), media import into Photos, native decoders for thumbnails/previews. |
+| Coverage tours | Written (`LightCraftUITests/*Tour*.swift`); summaries in `docs/tour-summaries/`. |
 
 ## To do, in order
 
-1. **Verify the Photos-library model end to end, iPad first, then iPhone** (`scripts/run-ui-tests.sh --only LightCraftUITests/DevicePhotosUITests`):
-   open a photo from Photos → edit → leave the loupe → the asset in Photos has LightCraft adjustment data
-   (`ca.hologram.lightcraft`) → reopen restores the sliders → Photo ▸ Revert works. Also the denied and limited
-   permission states (`xcrun simctl privacy <udid> revoke photos ca.hologram.lightcraft`). The last run of that test
-   failed at line 38 ("import label"): the test still looks for an import button from the earlier import-based
-   design — update it to the in-place editing flow.
-2. **Rewrite `CONTRACT.md` §2 and the README UX section** for the Photos-library model (they still describe the
-   `.lightcraftlibrary` document): the device's Photos library is the library; the engine catalog is an internal cache
-   in Application Support keyed by `PHAsset.localIdentifier`; originals referenced in place (`library.import` mode
-   `add`); edits written back with `PHContentEditingOutput` + adjustment data; `-LightCraftDemo` falls back to the
-   engine's sample photos when Photos is empty or denied.
-3. **Verify preset import**: a minimal Lightroom XMP preset placed in the app container's Documents, imported via
-   Presets ▸ Import Presets…, applied to a photo, exposure changes; the summary shows counts and full failures.
-4. **Investigate the crash after ~15 min of app uptime** seen during command tours (iPad and iPhone; no crash log was
-   captured). Suspects: memory growth in render/thumbnail caches (`LibraryModel+Rendering.swift`, engine
-   `MediaCache` budget — set one with `Session::media.set_budget` in the bridge) or leaked render tasks. Reproduce with
-   Instruments (Leaks/Allocations) on the simulator, or watch `xcrun simctl spawn <udid> log stream --predicate
-   'process == "LightCraft"'` and `~/Library/Logs/DiagnosticReports`.
-5. **Run all suites, iPad then iPhone**: `apple/scripts/run-ui-tests.sh`. Read every `-notes` and `-tour-summary`
-   attachment; every "not reached" item is a bug. Known ones:
-   - `panel.remove`: `spot.findBlemishes` needs a face-models folder: set `session.face_models_dir` in the bridge to
-     Application Support/LightCraft/FaceModels, or exclude face/denoise model commands in `ios-excluded-commands.txt`.
-   - `tool.guidedUpright`: no guide overlay of its own (drags land on the crop overlay); add one.
+1. **Finish and verify round 7** (see `CONTRACT.md` §6), iPad smoke after each runnable build.
+2. **iPhone suites**: `apple/scripts/run-ui-tests.sh`, iPad already green, then iPhone portrait/narrow. Read every
+   `-notes` and `-tour-summary`; every "not reached" item is a bug. Known open ones:
+   - `tool.guidedUpright`: overlay of its own (identifiers in CONTRACT §5); verify.
    - Not yet on iOS: `dialog.smartAlbum`, `dialog.newSmartAlbum`, `dialog.print`, `dialog.contactSheet`.
-   - iPhone accessibility labels of panel titles read the SF Symbol name; iPad shows "Crop And Rotate".
-6. **Haiku feature pass** on the built-in simulator (COOKBOOK §7, last bullet): one agent per area (library/grid,
-   loupe and gestures, each Edit section, crop, masking tools, remove/red eye, presets incl. import, versions/history,
-   menus and shortcuts with a hardware keyboard, export/share/save to Photos, permissions), iPad then iPhone; Sonnet
-   fixes; rerun the affected suites.
-7. Device build (COOKBOOK §8) when wanted.
+   - `spot.findBlemishes` needs a face-models folder (`session.face_models_dir`) or an exclusion.
+   - iPhone accessibility labels of panel titles read the SF Symbol name.
+3. **Haiku feature pass** (COOKBOOK §7, last bullet): one agent per area, iPad then iPhone; fills the "Measured"
+   column of the README's top-10 taps table; Sonnet fixes; rerun affected suites.
+4. **Device build** (COOKBOOK §8) when wanted; check memory over a long session there.
 
 ## Commands
 

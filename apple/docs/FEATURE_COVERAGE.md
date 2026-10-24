@@ -8,7 +8,7 @@ engine catalog command), `mapped` = `docs/tool-map.toml`, `excluded` = cannot wo
 
 | Group | Total | swift+menu | swift | menu | mapped | excluded | not reached |
 |---|---|---|---|---|---|---|---|
-| Engine commands with a menu path | 73 | 24 | 0 | 49 | 0 | 0 | 0 |
+| Engine commands with a menu path | 73 | 27 | 0 | 46 | 0 | 0 | 0 |
 | Desktop UI commands | 186 | 19 | 3 | 89 | 19 | 18 | 38 |
 
 Engine commands in total: 370; without a menu path (palette only): 297.
@@ -26,9 +26,9 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `beforeAfter.swap` | Swap Before and After Settings | View > Before/After Settings | menu | generated menu / command palette |
 | `develop.auto` | Auto Settings | Photo | swift+menu | Swift references it; also in the generated menus |
 | `develop.autoSync` | Auto Sync | Edit | menu | generated menu / command palette |
-| `develop.copy` | Copy Edit Settings | Edit | menu | generated menu / command palette |
+| `develop.copy` | Copy Edit Settings | Edit | swift+menu | Swift references it; also in the generated menus |
 | `develop.matchExposure` | Match Total Exposures | Photo | menu | generated menu / command palette |
-| `develop.paste` | Paste Edit Settings | Edit | menu | generated menu / command palette |
+| `develop.paste` | Paste Edit Settings | Edit | swift+menu | Swift references it; also in the generated menus |
 | `develop.pastePrevious` | Paste Settings from Previous | Edit | menu | generated menu / command palette |
 | `develop.reset` | Reset Edits | Photo | swift+menu | Swift references it; also in the generated menus |
 | `develop.treatment` | Black & White | Photo | swift+menu | Swift references it; also in the generated menus |
@@ -69,7 +69,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `photo.pick` | Flag as Pick | Photo > Set Flag | swift+menu | Swift references it; also in the generated menus |
 | `photo.rate` | Set Rating | Photo > Set Rating | swift+menu | Swift references it; also in the generated menus |
 | `photo.readFocusPoints` | Read Focus Points | Photo | menu | generated menu / command palette |
-| `photo.readMetadataFromFile` | Read Metadata from File | Photo | menu | generated menu / command palette |
+| `photo.readMetadataFromFile` | Read Metadata from File | Photo | swift+menu | Swift references it; also in the generated menus |
 | `photo.reject` | Flag as Reject | Photo > Set Flag | swift+menu | Swift references it; also in the generated menus |
 | `photo.reload` | Reload from Disk | Photo | menu | generated menu / command palette |
 | `photo.restore` | Restore | Photo | menu | generated menu / command palette |

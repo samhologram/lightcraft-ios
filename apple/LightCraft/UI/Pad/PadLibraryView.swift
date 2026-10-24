@@ -27,6 +27,7 @@ struct PadLibraryView: View {
             .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
+        .onAppear { model.panelsAsSheet = false }
         .onChange(of: model.canvasOnly) { _, on in
             if on { withAnimation { columns = .detailOnly } }
         }
@@ -108,8 +109,8 @@ struct PadLibraryView: View {
             get: { model.inspectorVisible && !model.canvasOnly },
             set: { if !model.canvasOnly { model.inspectorVisible = $0 } }
         )) {
-            PanelHost(model: model)
-                .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+            InspectorColumn(model: model)
+                .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
         }
     }
 
@@ -145,6 +146,7 @@ struct PadLibraryView: View {
                 }
                 .accessibilityIdentifier("grid.select")
             }
+            if model.mode == .grid && !model.samplesMode { MediaImportButton(model: model) }
             if model.mode == .loupe { FullScreenButton(model: model) }
             UndoRedoButtons(model: model)
             ShareButton(model: model)

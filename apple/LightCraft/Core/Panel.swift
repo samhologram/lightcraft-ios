@@ -1,7 +1,7 @@
 import Foundation
 
 /// The inspector panels of the loupe. `rawValue` is the suffix of the desktop `panel.<id>` command.
-enum Panel: String, CaseIterable, Identifiable, Sendable {
+enum Panel: String, CaseIterable, Identifiable, Sendable, Codable {
     case edit, profiles, crop, remove, masking, redeye, presets, info, keywords, versions, activity
 
     var id: String { rawValue }
@@ -44,6 +44,30 @@ enum Panel: String, CaseIterable, Identifiable, Sendable {
         guard commandID.hasPrefix("panel.") else { return nil }
         return Panel(rawValue: String(commandID.dropFirst("panel.".count)))
     }
+}
+
+/// Arrangement of the iPad inspector column: order, which panels are shown, which are collapsed.
+/// Codable; persisted by `AppSettings.panelLayout`. Stores `hidden` (not `visible`) so a panel added in
+/// a later version shows up by default.
+struct PanelLayout: Codable, Equatable, Sendable {
+    var order: [Panel]
+    var hidden: Set<Panel>
+    var collapsed: Set<Panel>
+
+    /// Every panel shown, in desktop order; only Edit open (collapsed headers are cheap, the column stays calm).
+    static let standard = PanelLayout(order: Panel.allCases, hidden: [], collapsed: Set(Panel.allCases).subtracting([.edit]))
+
+    /// Drops duplicates and appends panels missing from `order`.
+    func normalized() -> PanelLayout {
+        var seen = Set<Panel>()
+        var out = order.filter { seen.insert($0).inserted }
+        out += Panel.allCases.filter { !seen.contains($0) }
+        return PanelLayout(order: out, hidden: hidden, collapsed: collapsed)
+    }
+
+    var visiblePanels: [Panel] { order.filter { !hidden.contains($0) } }
+    func isVisible(_ panel: Panel) -> Bool { !hidden.contains(panel) }
+    func isCollapsed(_ panel: Panel) -> Bool { collapsed.contains(panel) }
 }
 
 /// Grid (library) or loupe (single photo).

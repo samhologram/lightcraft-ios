@@ -7,6 +7,8 @@ enum AppSettings {
         static let thumbSize = "thumbSize"
         static let jpegQuality = "jpegQuality"
         static let inspectorVisible = "inspectorVisible"
+        static let panelLayout = "panelLayout"
+        static let lastPanel = "lastPanel"
     }
 
     enum Default {
@@ -52,5 +54,31 @@ enum AppSettings {
     static var inspectorVisible: Bool {
         get { UserDefaults.standard.object(forKey: Key.inspectorVisible) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: Key.inspectorVisible) }
+    }
+}
+
+// MARK: Panels (remembered across launches; demo / UI-test launches always start from the defaults)
+
+extension AppSettings {
+    /// The iPad inspector arrangement (order, visible, collapsed) as JSON in UserDefaults.
+    static var panelLayout: PanelLayout {
+        get {
+            guard !isDemo,
+                  let data = UserDefaults.standard.data(forKey: Key.panelLayout),
+                  let layout = try? JSONDecoder().decode(PanelLayout.self, from: data) else { return .standard }
+            return layout.normalized()
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: Key.panelLayout) }
+        }
+    }
+
+    /// The panel that was in front last.
+    static var lastPanel: Panel {
+        get {
+            guard !isDemo, let raw = UserDefaults.standard.string(forKey: Key.lastPanel), let p = Panel(rawValue: raw) else { return .edit }
+            return p
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.lastPanel) }
     }
 }

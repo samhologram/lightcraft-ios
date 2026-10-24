@@ -18,9 +18,23 @@ final class LibraryModel {
     var developValues: [String: Double] = [:]
 
     // MARK: UI state shared by Core and UI
-    var activePanel: Panel = .edit {
-        didSet { if activePanel != oldValue { refreshLight() } }  // keeps `croppedFrame` current
+    var activePanel: Panel = AppSettings.lastPanel {
+        didSet {
+            AppSettings.lastPanel = activePanel
+            if !panelRevealSuppressed { revealPanelInLayout(activePanel) }  // any way of opening a panel shows it
+            if activePanel != oldValue { refreshLight() }  // keeps `croppedFrame` current
+        }
     }
+    /// The iPad inspector column's arrangement (order, visible, collapsed); persisted.
+    var panelLayout: PanelLayout = AppSettings.panelLayout {
+        didSet { AppSettings.panelLayout = panelLayout }
+    }
+    /// True in the phone layout (panels are a sheet showing one panel): set by `PhoneLibraryView` / `PadLibraryView`.
+    var panelsAsSheet = false
+    /// Bumps when a panel is opened so the inspector column scrolls to it; `panelRevealTarget` says which.
+    var panelRevealTick = 0
+    var panelRevealTarget: Panel?
+    @ObservationIgnored var panelRevealSuppressed = false
     var activeTool: Tool?
     var mode: Mode = .grid {
         didSet {

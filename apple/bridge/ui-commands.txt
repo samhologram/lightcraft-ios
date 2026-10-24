@@ -114,3 +114,7 @@ view.zoomOut
 view.zoomToggle
 geometry.guides
 photo.relink
+photo.readMetadataFromFile
+develop.copy
+develop.paste
+history.clear

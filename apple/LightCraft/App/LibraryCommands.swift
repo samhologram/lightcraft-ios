@@ -115,6 +115,23 @@ enum MenuLayout {
         return out
     }()
 
+    /// Ids that have a button in the generated menus (plus the panels in Window and undo / redo): their
+    /// shortcut is bound by the menu bar; `DesktopShortcutLayer` binds the rest as hidden buttons.
+    static let menuBoundIDs: Set<String> = {
+        var out: Set<String> = ["edit.undo", "edit.redo"]
+        for section in CommandCatalog.shared.menus {
+            for entry in entries(for: section.title) {
+                switch entry.kind {
+                case .command(let id): out.insert(id)
+                case .submenu(_, let ids): out.formUnion(ids)
+                default: break
+                }
+            }
+        }
+        for panel in Panel.allCases { out.insert(panel.commandID) }
+        return out
+    }()
+
     private static func systemName(_ s: KeyboardShortcut) -> String {
         var name = ""
         if s.modifiers.contains(.command) { name += "cmd+" }
@@ -133,15 +150,30 @@ struct CommandMenuItem: View {
     let id: String
 
     var body: some View {
-        let button = Button(CommandCatalog.shared.label(id)) { model?.present(id) }
+        Button(CommandCatalog.shared.label(id)) { model?.present(id) }
             .disabled(!(model?.isEnabled(id) ?? false))
+            .menuShortcut(id)
             .accessibilityIdentifier("command.\(id)")
-        if let shortcut = MenuLayout.shortcuts[id] {
-            button.keyboardShortcut(shortcut)
+    }
+}
+
+/// Binds the desktop shortcut of command `id` to a menu item. Bare keys (P, X, E, ...) are dropped while a
+/// text field is being edited so they never swallow typing.
+private struct MenuShortcutModifier: ViewModifier {
+    let id: String
+    private let monitor = TextFocusMonitor.shared
+
+    func body(content: Content) -> some View {
+        if let shortcut = MenuLayout.shortcuts[id], !(shortcut.modifiers.isEmpty && monitor.isEditing) {
+            content.keyboardShortcut(shortcut)
         } else {
-            button
+            content
         }
     }
+}
+
+extension View {
+    fileprivate func menuShortcut(_ id: String) -> some View { modifier(MenuShortcutModifier(id: id)) }
 }
 
 /// The entries of one generated menu (the content of a `CommandGroup` / `CommandMenu`).
@@ -258,6 +290,10 @@ struct LibraryCommands: Commands {
         CommandGroup(after: .toolbar) {
             MenuEntries(model: model, entries: MenuLayout.entries(for: "View"))
             Divider()
+            Button("Command Palette\u{2026}") { model?.showCommandPalette = true }
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(model == nil)
+                .accessibilityIdentifier("control.palette")
             // UI-only (no engine command): toggles the model's canvas-only flag, only with a photo open.
             Button(model?.canvasOnly == true ? String(localized: "Exit Full Screen Canvas") : String(localized: "Enter Full Screen Canvas")) {
                 model?.canvasOnly.toggle()
@@ -280,8 +316,19 @@ struct LibraryCommands: Commands {
     }
 
     @CommandsBuilder private var windowAndHelpCommands: some Commands {
+        // Window: every panel first (they open the inspector on that panel), then the desktop's other
+        // Window entries (tools, edit sections).
         CommandGroup(after: .windowArrangement) {
-            MenuEntries(model: model, entries: MenuLayout.entries(for: "Window"))
+            ForEach(Panel.allCases) { panel in
+                Button(panel.title) {
+                    if let model { model.showPanel(panel) }
+                }
+                .disabled(!(model?.isEnabled(panel.commandID) ?? false))
+                .menuShortcut(panel.commandID)
+                .accessibilityIdentifier("command.\(panel.commandID)")
+            }
+            Divider()
+            MenuEntries(model: model, entries: MenuLayout.entries(for: "Window", skipping: Set(Panel.allCases.map(\.commandID))))
         }
         CommandGroup(after: .help) {
             MenuEntries(model: model, entries: MenuLayout.entries(for: "Help"))

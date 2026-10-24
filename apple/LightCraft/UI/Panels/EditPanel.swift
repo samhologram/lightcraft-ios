@@ -64,16 +64,12 @@ struct EditPanel: View {
     private func headerButtons(titles: Bool) -> some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                headerButton("Auto", "wand.and.stars", id: "develop.auto", titles: titles) { model.run("develop.auto") }
                 headerButton("B&W", "circle.lefthalf.filled", id: "develop.treatment", titles: titles,
                              on: model.isBlackAndWhite) { model.run("develop.treatment") }
                 headerButton("HDR", "sun.max", id: "develop.hdr", titles: titles, on: model.hdrEnabled) {
                     model.run("develop.hdr", ["enabled": !model.hdrEnabled])
                 }
                 Spacer(minLength: 0)
-                headerButton("Reset", "arrow.counterclockwise", id: "develop.reset", titles: titles, role: .destructive) {
-                    model.run("develop.reset")
-                }
             }
         }
     }

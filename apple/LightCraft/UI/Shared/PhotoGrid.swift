@@ -29,6 +29,8 @@ struct PhotoGrid: View {
                 }
             }
         }
+        .desktopShortcuts(model: model)
+        .multiFingerUndoRedo(model: model)
     }
 }
 
@@ -166,6 +168,17 @@ struct PhotoContextMenu: View {
         Button { act("develop.reset") } label: { Label("Reset Edits", systemImage: "arrow.counterclockwise") }
             .accessibilityIdentifier("command.develop.reset")
         Divider()
+        Button { act("develop.copy", ids: false) } label: { Label("Copy Edit Settings", systemImage: "doc.on.doc") }
+            .accessibilityIdentifier("command.develop.copy")
+        Button { act("develop.paste") } label: { Label("Paste Edit Settings", systemImage: "doc.on.clipboard") }
+            .disabled(!model.isEnabled("develop.paste"))
+            .accessibilityIdentifier("command.develop.paste")
+        Button {
+            prepareSelection()
+            model.showExport = true
+        } label: { Label("Export / Share\u{2026}", systemImage: "square.and.arrow.up") }
+            .accessibilityIdentifier("command.dialog.export")
+        Divider()
         Button(role: .destructive) { act("photo.delete") } label: { Label("Delete", systemImage: "trash") }
             .accessibilityIdentifier("command.photo.delete")
     }
@@ -174,11 +187,13 @@ struct PhotoContextMenu: View {
         if !model.state.selected.contains(id) { model.select(id) }
     }
 
-    private func act(_ command: String, _ extra: [String: Any] = [:]) {
+    private func act(_ command: String, _ extra: [String: Any] = [:], ids: Bool = true) {
         prepareSelection()
         var params = extra
-        let sel = model.state.selected
-        params["ids"] = sel.contains(id) ? sel : [id]
+        if ids {
+            let sel = model.state.selected
+            params["ids"] = sel.contains(id) ? sel : [id]
+        }
         model.run(command, params)
     }
 }

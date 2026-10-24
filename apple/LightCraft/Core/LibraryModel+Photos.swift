@@ -89,7 +89,7 @@ extension LibraryModel {
         Task { await openPhoto(at: next) }
     }
 
-    private func engineID(forAsset local: String) async throws -> UInt64 {
+    func engineID(forAsset local: String) async throws -> UInt64 {
         let env = AppEnvironment.shared
         if let known = env.map.engineID(for: local), handle.photoInfo(id: known) != nil,
            let file = cachedFile(for: local), FileManager.default.fileExists(atPath: file.path) {

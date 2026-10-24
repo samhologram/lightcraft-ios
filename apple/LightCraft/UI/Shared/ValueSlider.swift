@@ -60,8 +60,10 @@ enum SliderTrack: Equatable {
     }
 }
 
-/// Label left, value right, a tinted track below. Drag moves the value (one begin/end pair per drag),
-/// double-tap resets, VoiceOver adjusts in steps. Used by the develop controls and the mask sliders.
+/// Label left, value right, a tinted track below. Drag anywhere on the row to scrub (relative, and the slower
+/// the finger moves the finer the steps; one begin/end pair per drag), double-tap resets, tap the value to type
+/// an exact one (Return or Done commits, clamped to the range), VoiceOver adjusts in steps.
+/// Ids: `control.<id>` (the slider), `control.<id>.value` (the value button / the editable field).
 struct ValueSlider: View {
     let identifier: String
     let label: String
@@ -76,7 +78,21 @@ struct ValueSlider: View {
     var onEnd: () -> Void = {}
     var onReset: () -> Void
 
+    private struct Scrub {
+        var raw: Double
+        var lastX: CGFloat
+        var lastTime: Date
+        var speed: Double = 0
+        /// nil until the drag has moved far enough to tell its axis; a vertical drag is left to the scroll view.
+        var horizontal: Bool?
+    }
+
     @State private var dragValue: Double?
+    @State private var scrub: Scrub?
+    @State private var rowWidth: CGFloat = 1
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var fieldFocused: Bool
 
     private let thumb: CGFloat = 24
 
@@ -103,10 +119,9 @@ struct ValueSlider: View {
                 Text(verbatim: label)
                     .font(.subheadline)
                     .lineLimit(1)
+                    .accessibilityHidden(true)
                 Spacer(minLength: 8)
-                Text(verbatim: formatted)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                valueView
             }
             GeometryReader { geo in
                 let width = geo.size.width
@@ -125,39 +140,133 @@ struct ValueSlider: View {
                 }
                 .frame(height: geo.size.height)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 3)
-                        .onChanged { g in
-                            let frac = min(1, max(0, (g.location.x - thumb / 2) / usable))
-                            let v = snapped(range.lowerBound + Double(frac) * (range.upperBound - range.lowerBound))
-                            if dragValue == nil { onBegin() }
-                            if dragValue != v {
-                                dragValue = v
-                                onChange(v)
-                            }
-                        }
-                        .onEnded { _ in
-                            if dragValue != nil { onEnd() }
-                            dragValue = nil
-                        }
-                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
+                .accessibilityValue(formatted)
+                .accessibilityIdentifier(identifier)
+                .accessibilityAdjustableAction { direction in
+                    let delta = max(step, (range.upperBound - range.lowerBound) / 50)
+                    let v = snapped(shown + (direction == .increment ? delta : -delta))
+                    onBegin()
+                    onChange(v)
+                    onEnd()
+                }
+                .accessibilityAction(named: Text("Reset")) { onReset() }
+                .accessibilityAction(named: Text("Enter Value")) { beginEditing() }
             }
             .frame(height: 30)
         }
         .contentShape(Rectangle())
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
         .onTapGesture(count: 2) { onReset() }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
-        .accessibilityValue(formatted)
-        .accessibilityIdentifier(identifier)
-        .accessibilityAdjustableAction { direction in
-            let delta = max(step, (range.upperBound - range.lowerBound) / 50)
-            let v = snapped(shown + (direction == .increment ? delta : -delta))
-            onBegin()
-            onChange(v)
-            onEnd()
+        .simultaneousGesture(scrubGesture)
+    }
+
+    // MARK: Scrubbing
+
+    private var scrubGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { g in
+                var s = scrub ?? Scrub(raw: shown, lastX: g.startLocation.x, lastTime: g.time)
+                if s.horizontal == nil {
+                    s.horizontal = abs(g.translation.width) >= abs(g.translation.height)
+                    if s.horizontal == true {
+                        if editing { commitEditing() }
+                        if dragValue == nil { onBegin() }
+                    }
+                }
+                guard s.horizontal == true else { scrub = s; return }
+                let dx = g.location.x - s.lastX
+                let dt = max(0.001, g.time.timeIntervalSince(s.lastTime))
+                s.speed = 0.6 * s.speed + 0.4 * Double(abs(dx)) / dt
+                // Slow drags are fine adjustments (15 %), fast ones cover the full range across the row.
+                let gain = min(1, max(0.15, s.speed / 500))
+                let span = range.upperBound - range.lowerBound
+                s.raw = min(range.upperBound, max(range.lowerBound, s.raw + Double(dx / max(1, rowWidth - thumb)) * span * gain))
+                s.lastX = g.location.x
+                s.lastTime = g.time
+                scrub = s
+                let v = snapped(s.raw)
+                if dragValue != v {
+                    dragValue = v
+                    onChange(v)
+                }
+            }
+            .onEnded { _ in
+                if scrub?.horizontal == true, dragValue != nil { onEnd() }
+                dragValue = nil
+                scrub = nil
+            }
+    }
+
+    // MARK: Exact entry
+
+    @ViewBuilder
+    private var valueView: some View {
+        if editing {
+            TextField("", text: $text)
+                .keyboardType(.numbersAndPunctuation)
+                .multilineTextAlignment(.trailing)
+                .font(.subheadline.monospacedDigit())
+                .submitLabel(.done)
+                .focused($fieldFocused)
+                .onSubmit { commitEditing() }
+                .onKeyPress(.escape) { cancelEditing(); return .handled }
+                .onChange(of: fieldFocused) { _, focused in if !focused { commitEditing() } }
+                .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { note in
+                    (note.object as? UITextField)?.selectAll(nil)
+                }
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { commitEditing() }
+                            .accessibilityIdentifier("\(identifier).value.done")
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .frame(minWidth: 64, maxWidth: 96)
+                .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+                .accessibilityLabel(Text("\(label) value"))
+                .accessibilityIdentifier("\(identifier).value")
+        } else {
+            Button { beginEditing() } label: {
+                Text(verbatim: formatted)
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("\(label) value"))
+            .accessibilityValue(formatted)
+            .accessibilityHint(Text("Double tap to type a value"))
+            .accessibilityIdentifier("\(identifier).value")
         }
-        .accessibilityAction(named: Text("Reset")) { onReset() }
+    }
+
+    private func beginEditing() {
+        text = formatted
+        editing = true
+        Task { @MainActor in fieldFocused = true }
+    }
+
+    private func cancelEditing() {
+        editing = false
+        fieldFocused = false
+    }
+
+    private func commitEditing() {
+        guard editing else { return }
+        editing = false
+        fieldFocused = false
+        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard let typed = Double(cleaned), typed.isFinite else { return }
+        let v = (min(range.upperBound, max(range.lowerBound, typed)) * 1_000_000).rounded() / 1_000_000
+        guard v != value else { return }
+        onBegin()
+        onChange(v)
+        onEnd()
     }
 
     @ViewBuilder

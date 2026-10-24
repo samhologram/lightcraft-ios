@@ -20,21 +20,9 @@ struct RemovePanel: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Find Automatically").font(.headline)
-                    HStack(spacing: 8) {
-                        finder("spot.findDust", "Dust Spots", "sparkles")
-                        finder("spot.findBlemishes", "Blemishes", "face.smiling")
-                    }
-                    Button {
-                        model.runUI("view.toolOverlay")
-                    } label: {
-                        Label("Cycle Tool Overlay", systemImage: "eye")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("view.toolOverlay")
                     Text("Spots").font(.headline)
                     if spots.isEmpty {
-                        Text("No spots yet. Use the automatic finders, or place spots with the Remove tool on the photo.")
+                        Text("No spots yet. Use Find in the panel header, or place spots with the Remove tool on the photo.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -72,17 +60,6 @@ struct RemovePanel: View {
             .onChange(of: model.state.revision, initial: true) { _, _ in reload() }
             .onChange(of: model.state.active) { _, _ in reload() }
         }
-    }
-
-    private func finder(_ id: String, _ title: String, _ symbol: String) -> some View {
-        Button {
-            model.run(id)
-        } label: {
-            Label(title, systemImage: symbol).frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .buttonStyle(.glass)
-        .disabled(!model.isEnabled(id))
-        .accessibilityIdentifier("command.\(id)")
     }
 
     private func reload() {

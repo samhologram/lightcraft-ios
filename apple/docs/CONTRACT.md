@@ -299,3 +299,44 @@ Guided Upright: the tool-strip button is `tool.guidedUpright`; the Crop panel's 
 `control.guidedUpright.open` (identifiers are unique). Once active, the overlay surface is
 `tool.guidedUpright.overlay` and each guide is `control.guidedUpright.guide.<n>` (n = 0-based index; actions
 "Delete Guide" and "Move Start/End Left/Right/Up/Down").
+
+## 6. Round 7 surface (in progress)
+
+Status of every item below: **round 7, in progress**. Three agents implement in parallel; this section is the
+intended contract (COOKBOOK §0b, §4). Anything not yet true in the code is a bug against this section, not a change to it.
+
+### 6.1 Panel system (round 7, in progress)
+- Every desktop panel is reachable from the panel switcher (iPad column / iPhone strip), the "Panels" menu
+  (`control.panels`, one item per panel `control.panels.<id>`) and the Window menu. An entry that opens nothing is a bug.
+- iPad inspector: panel sections are collapsible, hideable and reorderable; the arrangement persists per app
+  (UserDefaults). iPhone shows each panel as a sheet with detents that keep the photo visible.
+- Panel-owned actions live in the panel header (e.g. Presets "Import", Masking "New mask", Versions "Snapshot"), not in
+  the global toolbar.
+- Identifiers: `panel.<id>` (switcher entry and panel root), `panel.<id>.header`, `panel.<id>.collapse`,
+  `control.panels` (the Panels menu button), `control.panels.<id>` (its items). Existing `panel.close` / `panelTitle` stay.
+
+### 6.2 iPad menu bar (round 7, in progress)
+Merge, not replace: the iPadOS system groups (app, File basics, Edit undo/clipboard, Format, View, Window, Help) are kept
+and the desktop's menus and items are inserted in desktop order (from `desktop_menu_layout()`), Window and Help last.
+Single-key shortcuts are zero-size hidden buttons on the editor view.
+
+### 6.3 Productivity (round 7, in progress)
+- Frequent actions are at most 1 tap from the loupe (rating, flag, undo/redo, before/after, panel switch, auto tone).
+- Every desktop shortcut works with a hardware keyboard and is listed in the menu bar / hold-⌘ overlay, including
+  Lightroom's single keys: P / X / U (flags), 0-5 (rating), R (crop), D (develop), G (grid), E (loupe), arrows
+  (previous/next), `\` (before/after). ⌘K opens the command palette over the whole catalog.
+- Multi-touch: two-finger tap = undo, three-finger tap = redo. Context menus (long-press / right-click) on grid cells,
+  filmstrip cells and the loupe.
+- Sliders scrub and accept exact entry: `control.<id>` is the slider, `control.<id>.value` the tappable value field.
+- Customizable toolbar (`toolbar(id:)`); last panel and layout remembered; multiple windows / Stage Manager.
+- Clean: system components, SF Symbols, semantic colours, one primary action per area, no custom chrome.
+
+### 6.4 Media import (round 7, in progress)
+Files / iCloud Drive / any file provider (`fileImporter`, security-scoped URLs) and the Photos picker add RAW, DNG, TIFF,
+JPEG, PNG and HEIC (plus XMP sidecars, applied to the matching photo) **into the Photos library** (`PHAssetCreationRequest`),
+then they appear in the grid. Drag and drop and paste work on the grid. Entry points: grid toolbar
+`control.importMedia`, File ▸ Import Photos…, ⌘K, and the empty-library state. Result summary lists imports and failures.
+
+### 6.5 Native decoders (round 7, in progress)
+PhotoKit / ImageIO produce thumbnails, previews and decode non-RAW formats (HEIC to 16-bit TIFF via ImageIO: done). The
+engine's RAW decoder is kept for originals (non-destructive develop re-reads them); gaps are noted for upstream.

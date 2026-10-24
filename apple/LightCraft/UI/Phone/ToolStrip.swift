@@ -11,10 +11,14 @@ struct ToolStrip: View {
         ScrollView(.horizontal) {
             GlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
+                    if includesTools {
+                        PanelsMenu(model: model)
+                        Divider().frame(height: 36)
+                    }
                     ForEach(Panel.allCases, id: \.self) { panel in
-                        let selected = model.inspectorVisible && model.activePanel == panel
+                        let selected = model.isPanelShown(panel)
                         Button {
-                            uiOpenPanel(panel, model: model, toggle: true)
+                            model.togglePanel(panel)
                         } label: {
                             VStack(spacing: 2) {
                                 Image(systemName: panel.uiSymbol).font(.title3)

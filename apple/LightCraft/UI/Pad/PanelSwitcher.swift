@@ -29,9 +29,9 @@ struct PanelSwitcher: View {
         GlassEffectContainer(spacing: gap) {
             VStack(spacing: gap) {
                 ForEach(Panel.allCases, id: \.self) { panel in
-                    let selected = model.inspectorVisible && model.activePanel == panel
+                    let selected = model.isPanelShown(panel)
                     Button {
-                        uiOpenPanel(panel, model: model, toggle: true)
+                        model.togglePanel(panel)
                     } label: {
                         Image(systemName: panel.uiSymbol)
                             .font(edge < 40 ? .body : .title3)

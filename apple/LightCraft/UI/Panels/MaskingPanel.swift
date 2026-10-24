@@ -70,7 +70,7 @@ struct MaskingPanel: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    creation
+                    if masks.isEmpty { creationHint }
                     if !masks.isEmpty { list }
                     if let mask = activeMask { effects(mask) }
                 }
@@ -83,47 +83,11 @@ struct MaskingPanel: View {
 
     // MARK: Create
 
-    private var creation: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Add Mask").font(.headline)
-            GlassEffectContainer(spacing: 8) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
-                    toolButton("tool.brush", "Brush", "paintbrush", model.activeTool?.rawValue == "brush")
-                    toolButton("tool.linear", "Linear", "rectangle.split.1x2", model.activeTool?.rawValue == "linear")
-                    toolButton("tool.radial", "Radial", "circle.dashed", model.activeTool?.rawValue == "radial")
-                    kindButton("subject", "Subject", "person.crop.square")
-                    kindButton("sky", "Sky", "cloud.sun")
-                    kindButton("background", "Background", "rectangle.dashed")
-                }
-            }
-            Button {
-                model.runUI("view.maskOverlay")
-            } label: {
-                Label("Show Overlay", systemImage: "eye")
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("view.maskOverlay")
-        }
-    }
-
-    private func toolButton(_ id: String, _ title: String, _ symbol: String, _ active: Bool) -> some View {
-        Button {
-            model.runUI(id)
-        } label: {
-            Label(title, systemImage: symbol).frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .glassToggle(active)
-        .accessibilityIdentifier(id)
-    }
-
-    private func kindButton(_ kind: String, _ title: String, _ symbol: String) -> some View {
-        Button {
-            model.run("mask.add", ["kind": kind])
-        } label: {
-            Label(title, systemImage: symbol).frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .buttonStyle(.glass)
-        .accessibilityIdentifier("command.mask.add.\(kind)")
+    /// Masks are added from the panel header ("Add Mask").
+    private var creationHint: some View {
+        Text("No masks yet. Use Add Mask in the panel header, or pick a mask tool on the photo.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
     }
 
     // MARK: List

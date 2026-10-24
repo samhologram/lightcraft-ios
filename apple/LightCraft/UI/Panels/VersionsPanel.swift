@@ -20,15 +20,6 @@ struct VersionsPanel: View {
             PanelEmptyState(title: "No Photo", symbol: "photo", message: "Open a photo to save versions of its edit.")
         } else {
             VStack(spacing: 0) {
-                Button {
-                    model.run("version.create")
-                } label: {
-                    Label("Create Version", systemImage: "plus.square.on.square").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.glass)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .accessibilityIdentifier("command.version.create")
                 if versions.isEmpty {
                     PanelEmptyState(title: "No Versions", symbol: "square.on.square", message: "Create a version to return to this edit later.")
                 } else {
