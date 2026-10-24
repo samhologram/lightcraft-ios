@@ -299,6 +299,14 @@ class TourTestCase: LightCraftUITestCase {
     /// The second value is the cause class when it cannot be reached.
     func reveal(_ identifier: String) -> (XCUIElement?, String) {
         if let e = hit(identifier) { return (e, "") }
+        // The switcher moves what does not fit into a "More" menu (`panelSwitcher.more` > `panelSwitcher.more.<id>`).
+        if let more = hit("panelSwitcher.more") {
+            more.tap()
+            pause(0.5)
+            if let item = hit("panelSwitcher.more.\(identifier)") { return (item, "") }
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)).tap()
+            pause(0.3)
+        }
         guard element(identifier).exists else { return (nil, "missing-identifier") }
         let order = Self.panelIDs.map { "panel.\($0)" } + Self.toolIDs.map { "tool.\($0)" }
         guard let index = order.firstIndex(of: identifier) else { return (nil, "off-screen") }
@@ -394,6 +402,12 @@ class TourTestCase: LightCraftUITestCase {
             pause(0.8)
         } else {
             note("panel.close not hittable while a panel is open")
+            // Fallback: the inspector's own top-trailing corner, where the close button sits.
+            let inspector = element("inspector")
+            if inspector.exists {
+                inspector.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.0)).withOffset(CGVector(dx: 0, dy: 26)).tap()
+                pause(1)
+            }
         }
     }
 

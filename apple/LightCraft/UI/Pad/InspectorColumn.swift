@@ -47,14 +47,17 @@ struct InspectorColumn: View {
                     .symbolRenderingMode(.hierarchical)
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .zIndex(1)
             .accessibilityLabel("Close panel")
             .accessibilityIdentifier("panel.close")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .frame(minHeight: 48)
     }
 
     private var sections: some View {

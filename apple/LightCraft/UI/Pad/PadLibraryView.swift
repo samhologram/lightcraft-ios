@@ -92,10 +92,14 @@ struct PadLibraryView: View {
 
     // MARK: Loupe
 
-    /// Fixed width of the inspector column.
-    private static let inspectorWidth: CGFloat = 340
+    /// Width of the inspector column: 340 pt, 300 pt in narrow windows so the loupe keeps room.
+    private static func inspectorWidth(for windowWidth: CGFloat) -> CGFloat { windowWidth < 900 ? 300 : 340 }
 
     private var loupe: some View {
+        GeometryReader { geo in loupeLayout(width: geo.size.width) }
+    }
+
+    private func loupeLayout(width: CGFloat) -> some View {
         // A plain trailing column (not `.inspector`, which overlays the content in portrait and covered the
         // panel switcher): the switcher, filmstrip and rating bar live in the part that shrinks, so they stay hittable.
         HStack(spacing: 0) {
@@ -103,8 +107,11 @@ struct PadLibraryView: View {
                 HStack(spacing: 0) {
                     LoupeView(model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if !model.canvasOnly { PanelSwitcher(model: model) }
+                    // Full loupe height inside the safe area; the filmstrip and rating bar sit below, never over it.
+                    if !model.canvasOnly { PanelSwitcher(model: model).frame(maxHeight: .infinity) }
                 }
+                .frame(maxHeight: .infinity)
+                .layoutPriority(1)
                 if !model.canvasOnly {
                     Filmstrip(model: model)
                     RatingFlagBar(model: model)
@@ -115,8 +122,9 @@ struct PadLibraryView: View {
             if model.inspectorVisible && !model.canvasOnly {
                 Divider()
                 InspectorColumn(model: model)
-                    .frame(width: Self.inspectorWidth)
+                    .frame(width: Self.inspectorWidth(for: width))
                     .transition(.move(edge: .trailing))
+                    .zIndex(1)
             }
         }
         .animation(.snappy, value: model.inspectorVisible && !model.canvasOnly)

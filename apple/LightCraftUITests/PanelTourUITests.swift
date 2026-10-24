@@ -12,7 +12,9 @@ final class PanelTourUITests: TourTestCase {
     private struct Step { let prefix: String; let kind: Kind }
 
     private static let steps: [String: [Step]] = [
-        "edit": [Step(prefix: "control.light.", kind: .slide), Step(prefix: "command.develop.auto", kind: .tap)],
+        // At most four sliders (the 60 s item budget) plus the Auto header action.
+        "edit": ["exposure", "contrast", "highlights", "shadows"].map { Step(prefix: "control.light.\($0)", kind: .slide) }
+            + [Step(prefix: "command.develop.auto", kind: .tap)],
         "profiles": [Step(prefix: "profile.", kind: .tap)],
         "crop": [Step(prefix: "crop.aspect.", kind: .tap), Step(prefix: "command.crop.autoStraighten", kind: .tap),
                  Step(prefix: "command.photo.rotateLeft", kind: .tap), Step(prefix: "command.crop.reset", kind: .tap)],
