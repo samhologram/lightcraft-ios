@@ -172,3 +172,219 @@ class LightCraftUITestCase: XCTestCase {
         add(attachment)
     }
 }
+
+// MARK: - User-story helpers (UserStoryUITests)
+
+/// Per-story record: interaction count, every checked step (label, passed) and the UX audit findings.
+@MainActor
+final class StoryRecorder {
+    var taps = 0
+    var steps: [(String, Bool)] = []
+    var uxIssues: [String] = []
+}
+
+/// Appends one line to the shared story summary file (`/tmp/lcstory-summary.txt`, as the orchestrator expects).
+private func appendStorySummaryLine(_ line: String) {
+    let path = "/tmp/lcstory-summary.txt"
+    let old = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+    try? (old + line + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+}
+
+@MainActor
+extension LightCraftUITestCase {
+    /// Taps `id` when it appears within 5 s and becomes hittable within about 2 s. Records the step.
+    @discardableResult
+    func storyTap(_ id: String, _ r: StoryRecorder) -> Bool {
+        let e = element(id)
+        guard e.waitForExistence(timeout: 5) else {
+            r.steps.append((id, false))
+            return false
+        }
+        var hittable = e.isHittable
+        var tries = 0
+        while !hittable && tries < 10 {
+            pause(0.2)
+            hittable = e.isHittable
+            tries += 1
+        }
+        guard hittable else {
+            r.steps.append(("\(id) (not hittable)", false))
+            return false
+        }
+        e.tap()
+        r.taps += 1
+        r.steps.append((id, true))
+        return true
+    }
+
+    /// Long-presses `id` (opens a grid cell's context menu). Records the step.
+    @discardableResult
+    func storyPress(_ id: String, _ r: StoryRecorder) -> Bool {
+        let e = element(id)
+        guard e.waitForExistence(timeout: 5) else {
+            r.steps.append(("\(id) (long-press)", false))
+            return false
+        }
+        e.press(forDuration: 1.2)
+        r.taps += 1
+        r.steps.append(("\(id) (long-press)", true))
+        return true
+    }
+
+    /// Taps a menu item or button found by its visible label (menus often expose no identifier).
+    @discardableResult
+    func storyTapLabel(_ label: String, _ r: StoryRecorder) -> Bool {
+        for q in [app.menuItems[label], app.buttons[label]] {
+            let e = q.firstMatch
+            if e.waitForExistence(timeout: 3) && e.isHittable {
+                e.tap()
+                r.taps += 1
+                r.steps.append(("label:\(label)", true))
+                return true
+            }
+        }
+        r.steps.append(("label:\(label)", false))
+        return false
+    }
+
+    /// Records a checked condition as a step. Does not fail the test by itself; `storyAssertAll` does.
+    @discardableResult
+    func storyCheck(_ ok: Bool, _ label: String, _ r: StoryRecorder) -> Bool {
+        r.steps.append((label, ok))
+        return ok
+    }
+
+    /// Fails the test once, naming every step that was missed or failed.
+    func storyAssertAll(_ story: String, _ r: StoryRecorder) {
+        let missed = r.steps.filter { !$0.1 }.map { $0.0 }
+        XCTAssertTrue(missed.isEmpty, "\(story): \(missed.count) step(s) missed or failed: \(missed.joined(separator: ", "))")
+    }
+
+    /// The accessibility value of `id` as a string ("" when none).
+    func storyValue(_ id: String) -> String {
+        (element(id).value as? String) ?? ""
+    }
+
+    /// The numeric part of a slider value such as "+1.00" or "1 EV"; nil when there is none.
+    func storyNumber(_ text: String) -> Double? {
+        Double(String(text.filter { "0123456789.-".contains($0) }))
+    }
+
+    /// Sets an exact value through the slider's tap-to-type field (`<control>.value`): tap, clear, type, then
+    /// tap `<control>.value.done` when it shows, else tap near the top edge of the window.
+    @discardableResult
+    func storyEnterValue(_ control: String, _ text: String, _ r: StoryRecorder) -> Bool {
+        let field = "\(control).value"
+        guard storyTap(field, r) else { return false }
+        app.typeText(String(repeating: "\u{8}", count: 8) + text)
+        pause(0.3)
+        let done = "\(field).done"
+        if element(done).exists {
+            storyTap(done, r)
+        } else {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)).tap()
+        }
+        pause(0.8)
+        return true
+    }
+
+    /// Identifiers starting with `prefix` from ONE accessibility snapshot, in tree order. No NSPredicate.
+    func storyIDs(prefix: String) -> [String] {
+        guard let root = try? app.snapshot() else { return [] }
+        var found: [String] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            let id = node.identifier
+            if id.hasPrefix(prefix), !found.contains(id) { found.append(id) }
+            for child in node.children { walk(child) }
+        }
+        walk(root)
+        return found
+    }
+
+    /// The first identifier with `prefix` that exists and is hittable now; nil when none.
+    func storyFirstHittable(prefix: String) -> String? {
+        for id in storyIDs(prefix: prefix) {
+            let e = element(id)
+            if e.exists && e.isHittable { return id }
+        }
+        return nil
+    }
+
+    /// The first hittable slider whose identifier does not start with `excludingPrefix`; nil when none.
+    func storyFirstSlider(excludingPrefix: String) -> XCUIElement? {
+        for s in app.sliders.allElementsBoundByIndex where s.exists && s.isHittable && !s.identifier.hasPrefix(excludingPrefix) {
+            return s
+        }
+        return nil
+    }
+
+    /// Read-only UX audit of the current screen (one accessibility snapshot). Records every finding in
+    /// `r.uxIssues` and attaches `<story>-ux` with the counts and up to 30 lines.
+    func uxAudit(story: String, _ r: StoryRecorder) {
+        var lines: [String] = []
+        var counts: [String: Int] = [:]
+        var interactive = 0
+        var sheets = 0
+        func flag(_ category: String, _ detail: String) {
+            counts[category, default: 0] += 1
+            let line = "\(category): \(detail)"
+            r.uxIssues.append(line)
+            lines.append(line)
+        }
+        let window = app.windows.firstMatch.frame
+        let interactiveTypes: [XCUIElement.ElementType] = [.button, .slider, .textField, .switch, .menuButton]
+        func walk(_ node: XCUIElementSnapshot, _ depth: Int) {
+            if depth > 80 { return }
+            let type = node.elementType
+            if type == .sheet { sheets += 1 }
+            if type == .alert { flag("alert", "'\(node.label)'") }
+            if interactiveTypes.contains(type) {
+                interactive += 1
+                let f = node.frame
+                let id = node.identifier
+                let label = node.label
+                let desc = "\(type) id='\(id)' label='\(label)' frame=\(f)"
+                if id.isEmpty { flag("no-identifier", desc) }
+                if label.isEmpty {
+                    flag("no-label", desc)
+                } else if label.contains(".") && !label.contains(" ") {
+                    flag("symbol-like-label", desc)
+                }
+                if label.hasSuffix("\u{2026}") { flag("ellipsis-label", desc) }
+                if !f.isEmpty {
+                    if f.width < 44 || f.height < 44 { flag("under-44pt", desc) }
+                    if !window.isEmpty && (f.minX < window.minX - 1 || f.minY < window.minY - 1
+                                           || f.maxX > window.maxX + 1 || f.maxY > window.maxY + 1) {
+                        flag("outside-window", desc)
+                    }
+                }
+            }
+            for child in node.children { walk(child, depth + 1) }
+        }
+        if let root = try? app.snapshot() {
+            walk(root, 0)
+        } else {
+            flag("no-snapshot", "app.snapshot() failed")
+        }
+        if sheets > 1 { flag("multiple-sheets", "\(sheets) sheets on screen") }
+
+        var out = ["story: \(story)", "interactive elements: \(interactive)", "issues: \(lines.count)"]
+        for key in counts.keys.sorted() { out.append("  \(key): \(counts[key] ?? 0)") }
+        out.append(contentsOf: lines.prefix(30))
+        let attachment = XCTAttachment(string: out.joined(separator: "\n"))
+        attachment.name = "\(story)-ux"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// Attaches `<story>-steps` and appends `story | PASS/FAIL | taps | ux issues` to the summary file.
+    func finishStory(_ name: String, _ r: StoryRecorder) {
+        let lines = r.steps.map { ($0.1 ? "ok     " : "MISSED ") + $0.0 }
+        let attachment = XCTAttachment(string: lines.isEmpty ? "no steps" : lines.joined(separator: "\n"))
+        attachment.name = "\(name)-steps"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let failed = r.steps.contains { !$0.1 }
+        appendStorySummaryLine("\(name) | \(failed ? "FAIL" : "PASS") | \(r.taps) | \(r.uxIssues.count)")
+    }
+}

@@ -12,9 +12,9 @@ final class PanelTourUITests: TourTestCase {
     private struct Step { let prefix: String; let kind: Kind }
 
     private static let steps: [String: [Step]] = [
-        // At most four sliders (the 60 s item budget) plus the Auto header action.
-        "edit": ["exposure", "contrast", "highlights", "shadows"].map { Step(prefix: "control.light.\($0)", kind: .slide) }
-            + [Step(prefix: "command.develop.auto", kind: .tap)],
+        // Two sliders (the 60 s item budget) plus the Auto header action.
+        "edit": [Step(prefix: "control.light.exposure", kind: .slide), Step(prefix: "control.light.contrast", kind: .slide),
+                 Step(prefix: "command.develop.auto", kind: .tap)],
         "profiles": [Step(prefix: "profile.", kind: .tap)],
         "crop": [Step(prefix: "crop.aspect.", kind: .tap), Step(prefix: "command.crop.autoStraighten", kind: .tap),
                  Step(prefix: "command.photo.rotateLeft", kind: .tap), Step(prefix: "command.crop.reset", kind: .tap)],
@@ -25,7 +25,9 @@ final class PanelTourUITests: TourTestCase {
         "info": [Step(prefix: "info.allMetadata", kind: .tap), Step(prefix: "info.title", kind: .type)],
         "keywords": [Step(prefix: "keywords.entry", kind: .type)],
         "versions": [Step(prefix: "command.version.create", kind: .tap)],
-        "activity": [Step(prefix: "history.", kind: .tap), Step(prefix: "command.edit.redo", kind: .tap)],
+        // History rows are `history.<n>`; Redo is disabled until an Undo has run, so Undo comes first.
+        "activity": [Step(prefix: "history.0", kind: .tap), Step(prefix: "command.edit.undo", kind: .tap),
+                     Step(prefix: "command.edit.redo", kind: .tap)],
     ]
 
     private func tour(landscape: Bool) throws {
@@ -47,6 +49,13 @@ final class PanelTourUITests: TourTestCase {
             XCTFail("\(missed.count) of \(items.count) panels NOT-REACHED: " + missed.map { "\($0.name) [\($0.cause)]" }.joined(separator: ", "))
         }
         if items.isEmpty { XCTFail("The panel tour visited nothing") }
+    }
+
+    /// Exact-identifier lookup by element type, for controls the generic `descendants(matching: .any)` lookup can miss
+    /// (`info.title` is a TextField, `info.allMetadata` a Button inside a List). Only used with exact ids.
+    private func typedFallback(_ identifier: String) -> XCUIElement? {
+        for e in [app.textFields[identifier], app.buttons[identifier]] where canTap(e) { return e }
+        return nil
     }
 
     private func visit(_ panel: String) {
@@ -108,6 +117,7 @@ final class PanelTourUITests: TourTestCase {
                 scrollPanel(); tries += 1
                 target = hit(prefix: step.prefix)
             }
+            if target == nil, !timeUp, let t = typedFallback(step.prefix) { target = t }
             var viaMenu = false
             if target == nil, !timeUp, let t = hitInHeaderMenu(panel: panel, prefix: step.prefix) {
                 target = t
@@ -141,8 +151,9 @@ final class PanelTourUITests: TourTestCase {
                 // "\n" makes XCUITest tap the on-screen Return key, which is not always hittable (it failed
                 // the tour); commit only when it is, else end editing by tapping a neutral spot.
                 target.typeText("tour")
-                let enter = app.keyboards.buttons.matching(NSPredicate(format: "label ==[c] 'return' OR label ==[c] 'done'")).firstMatch
-                if enter.exists && enter.isHittable {
+                let enter = ["Return", "return", "Done", "done"].map { app.keyboards.buttons[$0].firstMatch }
+                    .first { $0.exists && $0.isHittable }
+                if let enter {
                     enter.tap()
                 } else if app.keyboards.count > 0 {
                     app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap()
