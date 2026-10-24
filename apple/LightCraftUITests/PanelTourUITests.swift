@@ -96,19 +96,25 @@ final class PanelTourUITests: TourTestCase {
                 scrollPanel(); tries += 1
                 target = hit(prefix: step.prefix)
             }
+            var viaMenu = false
+            if target == nil, !timeUp, let t = hitInHeaderMenu(panel: panel, prefix: step.prefix) {
+                target = t
+                viaMenu = true
+            }
             guard let target else {
                 misses.append("\(step.prefix)(\(exists(prefix: step.prefix) ? "off-screen" : "missing-identifier"))")
                 continue
             }
             let tid = target.identifier
+            if viaMenu { details.append("menu") }
             switch step.kind {
             case .tap:
                 target.tap()
                 details.append("tap \(tid)")
             case .slide:
                 let before = target.value as? String ?? ""
-                let from = target.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.8))
-                let to = target.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.8))
+                let from = target.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+                let to = target.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
                 from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
                 pause(1)
                 let after = target.value as? String ?? ""

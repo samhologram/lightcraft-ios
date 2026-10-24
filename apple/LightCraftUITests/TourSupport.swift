@@ -241,7 +241,9 @@ class TourTestCase: LightCraftUITestCase {
             let id = node.identifier
             // Full-screen and Guided Upright controls change the layout, not a setting: never tour them.
             let layout = id.hasPrefix("control.fullscreen") || id.hasPrefix("control.guidedUpright")
-            if id.hasPrefix(prefix), !layout, seen.insert(id).inserted { found.append(id) }
+            // Tap-to-type value labels (`control.x.value`, `.value.done`) are not sliders.
+            let valueLabel = id.hasSuffix(".value") || id.hasSuffix(".value.done")
+            if id.hasPrefix(prefix), !layout, !valueLabel, seen.insert(id).inserted { found.append(id) }
             for child in node.children { walk(child) }
         }
         walk(root)
@@ -256,6 +258,39 @@ class TourTestCase: LightCraftUITestCase {
     }
 
     func exists(prefix: String) -> Bool { !ids(prefix: prefix).isEmpty }
+
+    /// Grid cells `photo.<digits>` (not `photo.on.rectangle` and other symbol names), in numeric order.
+    func photoCellIDs() -> [String] {
+        let cells = ids(prefix: "photo.").compactMap { id -> (Int, String)? in
+            let suffix = id.dropFirst("photo.".count)
+            guard !suffix.isEmpty, suffix.allSatisfy({ $0 >= "0" && $0 <= "9" }), let n = Int(suffix) else { return nil }
+            return (n, id)
+        }
+        return cells.sorted { $0.0 < $1.0 }.map { $0.1 }
+    }
+
+    /// First tappable grid cell, `photo.0` first.
+    func hitPhotoCell() -> XCUIElement? {
+        for id in photoCellIDs() { if let e = hit(id) { return e } }
+        return nil
+    }
+
+    /// For an item living in a header menu (`panel.<id>.find` / `.add` / `.menu`): opens each such menu in turn
+    /// and returns the first tappable element with `prefix`. The menu is left open (tapping the item closes it);
+    /// when nothing matches, the menu is dismissed and nil returned.
+    func hitInHeaderMenu(panel: String, prefix: String) -> XCUIElement? {
+        for suffix in ["find", "add", "menu"] {
+            let id = "panel.\(panel).\(suffix)"
+            guard let opener = hit(id) else { continue }
+            opener.tap()
+            pause(0.8)
+            if let e = hit(prefix: prefix) { return e }
+            // Dismiss: Escape-equivalent tap on a neutral corner of the window.
+            if app.keyboards.count == 0 { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap() }
+            pause(0.5)
+        }
+        return nil
+    }
 
     /// True when the panel/tool switcher is the iPad's vertical column (otherwise the iPhone's strip).
     var verticalSwitcher: Bool { element("panelSwitcher").exists }
@@ -324,7 +359,7 @@ class TourTestCase: LightCraftUITestCase {
         if loupeSignal() != nil { return true }
         let deadline = Date().addingTimeInterval(waitCap)
         while Date() < deadline && !overBudget {
-            if let cell = hit(prefix: "photo.") {
+            if let cell = hitPhotoCell() {
                 cell.tap()
                 // The photo opens asynchronously ("Opening…" overlay); a tap that landed before the grid was
                 // interactive is repeated once the overlay is gone and the grid is still there.
