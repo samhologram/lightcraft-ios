@@ -24,6 +24,7 @@ struct PadLibraryView: View {
             .navigationTitle(model.mode == .loupe ? (model.activePhoto?.fileName ?? "Photo") : SourceMenuContent.currentTitle(model: model))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .toolbar(removing: .sidebarToggle)
             .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
@@ -134,6 +135,14 @@ struct PadLibraryView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
+            } label: {
+                Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.leading")
+            }
+            .accessibilityIdentifier("control.sidebar")
+        }
         ToolbarItem(placement: .topBarLeading) {
             if model.mode == .loupe {
                 Button {

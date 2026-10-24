@@ -73,10 +73,16 @@ struct InspectorColumn: View {
             let bodyHeight = max(Self.minBodyHeight, (geo.size.height - Self.headerHeight * CGFloat(shown.count)) / CGFloat(max(open, 1)))
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
-                    VStack(spacing: 0) {
+                    // Headers are pinned: whatever part of the column is scrolled into view, the visible
+                    // section's header (collapse, actions, menu) stays at the top and hittable.
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                         ForEach(shown) { panel in
-                            PanelSection(model: model, panel: panel, bodyHeight: bodyHeight, headerHeight: Self.headerHeight)
-                                .id(panel)
+                            Section {
+                                PanelSectionBody(model: model, panel: panel, bodyHeight: bodyHeight)
+                            } header: {
+                                PanelSectionHeader(model: model, panel: panel, headerHeight: Self.headerHeight)
+                                    .id(panel)
+                            }
                         }
                     }
                 }
@@ -101,18 +107,15 @@ extension InspectorColumn {
     }
 }
 
-/// One stacked panel: header (disclosure, title, actions, menu) and, when open, the panel body.
-private struct PanelSection: View {
+/// The body of one stacked panel (empty while collapsed), followed by a divider.
+private struct PanelSectionBody: View {
     let model: LibraryModel
     let panel: Panel
     let bodyHeight: CGFloat
-    let headerHeight: CGFloat
 
     var body: some View {
-        let collapsed = model.panelLayout.isCollapsed(panel)
         VStack(spacing: 0) {
-            header(collapsed: collapsed)
-            if !collapsed {
+            if !model.panelLayout.isCollapsed(panel) {
                 PanelBody(panel: panel, model: model)
                     .frame(height: bodyHeight)
                     .clipped()
@@ -127,6 +130,15 @@ private struct PanelSection: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("panel.\(panel.rawValue).section")
     }
+}
+
+/// The pinned header of one stacked panel: disclosure, title, actions, menu.
+private struct PanelSectionHeader: View {
+    let model: LibraryModel
+    let panel: Panel
+    let headerHeight: CGFloat
+
+    var body: some View { header(collapsed: model.panelLayout.isCollapsed(panel)) }
 
     private func header(collapsed: Bool) -> some View {
         HStack(spacing: 4) {
@@ -164,7 +176,8 @@ private struct PanelSection: View {
                 Button(role: .destructive) { model.hidePanel(panel) } label: { Label("Hide Panel", systemImage: "eye.slash") }
                     .accessibilityIdentifier("panel.\(panel.rawValue).hide")
             } label: {
-                Image(systemName: "ellipsis")
+                Label("Panel Options", systemImage: "ellipsis")
+                    .labelStyle(.iconOnly)
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
             }
@@ -175,6 +188,12 @@ private struct PanelSection: View {
         .padding(.trailing, 8)
         .frame(height: headerHeight)
         .background(Color(uiColor: .secondarySystemBackground))
+        .overlay(alignment: .bottom) { Divider() }
+        .dropDestination(for: String.self) { items, _ in
+            guard let raw = items.first, let dragged = Panel(rawValue: raw) else { return false }
+            model.movePanel(dragged, before: panel)
+            return true
+        }
         .draggable(panel.rawValue)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("panel.\(panel.rawValue).header")

@@ -41,6 +41,14 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   via PhotoKit, Music, Files…): open and edit items in place, keep the engine's catalog as an internal cache keyed by the
   platform's ids, and write results back through the platform's non-destructive editing API with the engine's settings
   as re-editable adjustment data. Never make the user "import" what the platform already holds.
+- Document apps own a folder: "<App>" in iCloud Drive (ubiquity container, document scope public, app icon in Files),
+  falling back to On My iPad › <App> (`UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`) when iCloud is
+  unavailable (free Personal Team, signed out). New documents and copies go there; iOS has no API to set the launch
+  browser's starting folder, so don't promise that (users pin the folder in Files' Favourites).
+- Opening a foreign format (PNG, JPEG, HEIC, PSD, SVG…) creates an editable copy in the native format in that folder,
+  saved as soon as an edit happens (leaving the editor must leave a file); the original is never modified. Reopening
+  the same original reopens its copy (remember source → copy) instead of making "name 2". Export/Share writes
+  foreign formats back out. Library apps (LightCraft) instead write back to the platform library.
 - When the user's wording is ambiguous ("use the internal library"), ask once with concrete options; then re-brief
   every running agent on the decision immediately.
 - Follow Apple's HIG for iPad and iPhone as closely as possible: system components, materials (Liquid Glass),
@@ -146,6 +154,11 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   properties, layers…) exists and opens from the right-side panel menu and the Window menu; panels can be added,
   hidden, collapsed and stacked/reordered in the inspector column, and the arrangement persists per app. A panel
   entry that opens nothing is a bug: tours must open and act on every panel. iPhone shows them as sheets.
+- Story-pass findings to design in from the start (LightCraft run 1): panel headers stay pinned (never scroll above
+  the window top with their actions); every cell/thumbnail has an accessibility label and id; ids on rows inside a
+  SwiftUI `List`/`DisclosureGroup`/`Menu` aren't reliably exposed — put them on the row content or use labels; paste
+  of settings must mark the target as edited; context submenus need ids. System toolbar/menu rows under 44 pt are
+  not defects.
 - Panel-owned actions live in their panel's header, as on the desktop (e.g. "add adjustment layer", new layer,
   mask, delete in the Layers panel), not in the global toolbar.
 - Launch: for `DocumentGroup`, `DocumentGroupLaunchScene` with system background and the app icon in an overlay laid out
@@ -214,6 +227,9 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
 - One booted simulator on the machine at a time, across parallel app sessions: take the shared lock
   (`mkdir <workspace>/.sim.lock`) before booting, shut down and release after each run; never hold it across a build.
   Builds use `generic/platform=iOS Simulator` and never boot a device. If the Mac lags, `simctl shutdown all`.
+  Take the lock only in the same process that runs the tests (bounded wait loop, release in a trap/finally step);
+  never leave a detached background waiter: an orphaned loop grabs the lock later with no one using it and blocks
+  every other app. A lock older than its run's timeout with no test process alive is stale and may be removed.
 - Parallel apps share one iPad and one iPhone simulator; don't `simctl create` per-app devices. After every run,
   `simctl uninstall` the app and its UITests runner, so no compiled app stays installed when not needed.
 - Close Simulator.app while tests run; drive and inspect with XCUITest and `simctl io screenshot`, not by hand.

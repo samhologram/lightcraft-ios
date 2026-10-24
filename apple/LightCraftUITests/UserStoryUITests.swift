@@ -14,30 +14,164 @@ final class UserStoryUITests: LightCraftUITestCase {
         XCTAssertTrue(element("photo.0").waitForExistence(timeout: 30), "no photos in the grid")
     }
 
-    /// Opens photo.0 in the loupe and makes sure the Edit panel is showing (iPhone).
+    /// Like `startLibrary`, but every step is recorded instead of asserted, and the test keeps running after a
+    /// failed step, so the story still writes its steps and UX files. Used by the stories that must always report.
+    private func startLibraryRecording(_ r: StoryRecorder, dark: Bool = false) {
+        launchDemo(dark: dark)
+        continueAfterFailure = true
+        pause(2)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow Full Access", "Allow Access to All Photos", "Allow"] {
+            let button = springboard.alerts.buttons[label].firstMatch
+            if button.waitForExistence(timeout: 2) { button.tap(); break }
+        }
+        storyCheck(element("demoReady").waitForExistence(timeout: 180), "demo-grid-ready", r)
+        pause(3)
+        storyCheck(element("photo.0").waitForExistence(timeout: 30), "grid-photo-0", r)
+    }
+
+    /// Opens photo.0 in the loupe and makes sure the Edit panel section shows the exposure slider.
     @discardableResult
     private func openStoryPhoto(_ r: StoryRecorder) -> Bool {
         storyTap("photo.0", r)
         let opened = waitForAny(["toolbar.beforeAfter", "control.light.exposure", "loupe"], timeout: 30) != nil
         storyCheck(opened, "loupe-open", r)
-        if opened { ensureEditPanelOpen() }
+        if opened { ensureExposureSlider(r) }
         return opened
     }
 
-    private func exposureValue() -> String { storyValue("control.light.exposure") }
+    /// Makes sure the Edit panel is shown and expanded so `control.light.exposure` exists. Taps the `panel.edit`
+    /// switcher button when the slider is missing, waits up to 10 s for it, and taps the section's collapse
+    /// toggle (`panel.edit.collapse`) when that is on screen and the slider still is not. Records one step.
+    @discardableResult
+    private func ensureExposureSlider(_ r: StoryRecorder) -> Bool {
+        let slider = element("control.light.exposure")
+        if !slider.exists { tapQuietly(element("panel.edit"), timeout: 5) }
+        var shown = slider.waitForExistence(timeout: 10)
+        if !shown, element("panel.edit.collapse").exists {
+            tapQuietly(element("panel.edit.collapse"), timeout: 1)
+            shown = slider.waitForExistence(timeout: 5)
+        }
+        storyCheck(shown, "exposure-slider-visible", r)
+        return shown
+    }
+
+    /// Value of `id`, or "" when it is not on screen (reading a missing element would fail the test).
+    private func valueOf(_ id: String) -> String {
+        let e = element(id)
+        guard e.exists else { return "" }
+        return (e.value as? String) ?? ""
+    }
+
+    private func labelOf(_ id: String) -> String {
+        let e = element(id)
+        return e.exists ? e.label : ""
+    }
+
+    private func exposureValue() -> String { valueOf("control.light.exposure") }
+
+    /// True when `e` exists, its centre lies in the window and it is hittable. Checks the frame first, because
+    /// `isHittable` fails the test for elements scrolled far out of view.
+    private func onScreen(_ e: XCUIElement) -> Bool {
+        guard e.exists else { return false }
+        let f = e.frame
+        let w = app.windows.firstMatch.frame
+        guard !f.isEmpty, w.contains(CGPoint(x: f.midX, y: f.midY)) else { return false }
+        return e.isHittable
+    }
+
+    /// Taps `e` once it appears and is on screen, within `timeout`. Records no step; returns whether it tapped.
+    @discardableResult
+    private func tapQuietly(_ e: XCUIElement, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if onScreen(e) { e.tap(); return true }
+            pause(0.3)
+        }
+        return false
+    }
+
+    /// A menu item on screen by label. Searches the open menu first, then any menu item or button with that label.
+    private func menuElement(_ label: String) -> XCUIElement? {
+        let candidates = [
+            app.menus.firstMatch.menuItems[label].firstMatch,
+            app.menuItems[label].firstMatch,
+            app.buttons[label].firstMatch,
+        ]
+        for e in candidates where onScreen(e) { return e }
+        return nil
+    }
+
+    /// Taps a menu item by label; returns whether it was found.
+    @discardableResult
+    private func tapMenuItem(_ label: String) -> Bool {
+        guard let e = menuElement(label) else { return false }
+        e.tap()
+        return true
+    }
 
     /// What a key or gesture changed on screen: photo cell labels and values, selection, the exposure value
     /// and the edited marker. Compared before and after each shortcut to record whether it had an effect.
     private func stateSignature() -> String {
-        let p0 = element("photo.0")
         let p1 = element("photo.1")
         return [
-            p0.label,
-            (p0.value as? String) ?? "",
-            String(p1.isSelected),
+            labelOf("photo.0"),
+            valueOf("photo.0"),
+            String(p1.exists && p1.isSelected),
             exposureValue(),
             String(element("photo.edited.0").exists),
         ].joined(separator: "|")
+    }
+
+    /// Long-presses grid cell `cell`, then picks `id` from its context menu. Items that live in a submenu are
+    /// reached by opening the submenu (`submenu`, by label) first. The menu label `label` is the fallback when the
+    /// item has no identifier. Records the pick as one step named `id`.
+    @discardableResult
+    private func pickFromCellMenu(cell: String, id: String, submenu: String?, label: String, _ r: StoryRecorder) -> Bool {
+        storyPress(cell, r)
+        pause(0.8)
+        var done = tapQuietly(element(id), timeout: 1)
+        if !done, let sub = submenu, let s = menuElement(sub) {
+            s.tap()
+            pause(0.8)
+            done = tapQuietly(element(id), timeout: 2) || tapMenuItem(label)
+        }
+        if !done { done = tapMenuItem(label) }
+        if done { r.taps += 1 }
+        r.steps.append((id, done))
+        return done
+    }
+
+    /// Rotates left in the Crop panel: the `command.photo.rotateLeft` control when it is there, else the Crop
+    /// panel header menu (`panel.crop.menu`) and its "Rotate Left" item. Records one step.
+    private func rotateLeftInCrop(_ r: StoryRecorder) {
+        if tapQuietly(element("command.photo.rotateLeft"), timeout: 3) {
+            r.taps += 1
+            r.steps.append(("command.photo.rotateLeft", true))
+            return
+        }
+        var done = false
+        if tapQuietly(element("panel.crop.menu"), timeout: 3) {
+            pause(0.8)
+            done = tapMenuItem("Rotate Left")
+            if !done {
+                // Dismiss the menu with a tap on a neutral corner of the window.
+                app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap()
+                pause(0.5)
+            }
+        }
+        if done { r.taps += 1 }
+        r.steps.append(("command.photo.rotateLeft", done))
+    }
+
+    /// Sends one shortcut and records whether the visible state changed (a note, not an assertion).
+    private func keyProbe(_ label: String, _ send: () -> Void) {
+        let before = stateSignature()
+        send()
+        pause(1)
+        let after = stateSignature()
+        note("key \(label): effect=\(before != after)")
+        if before == after { note("key \(label): no visible change (before \(before))") }
     }
 
     // MARK: a. Cull
@@ -46,12 +180,10 @@ final class UserStoryUITests: LightCraftUITestCase {
         defer { flushNotes() }
         let r = StoryRecorder()
         startLibrary()
-        storyPress("photo.0", r)
-        storyTap("photos.pick", r)
-        storyPress("photo.1", r)
-        storyTap("photos.rate.3", r)
-        storyPress("photo.2", r)
-        storyTap("photos.reject", r)
+        // Flag submenu holds Pick and Reject; the Rating submenu holds the star items.
+        pickFromCellMenu(cell: "photo.0", id: "photos.pick", submenu: "Flag", label: "Pick", r)
+        pickFromCellMenu(cell: "photo.1", id: "photos.rate.3", submenu: "Rating", label: "3 Stars", r)
+        pickFromCellMenu(cell: "photo.2", id: "photos.reject", submenu: "Flag", label: "Reject", r)
         uxAudit(story: "cull", r)
         finishStory("cull", r)
         storyAssertAll("cull", r)
@@ -97,7 +229,7 @@ final class UserStoryUITests: LightCraftUITestCase {
         let aspect = storyFirstHittable(prefix: "crop.aspect.")
         storyCheck(aspect != nil, "crop-aspect-found", r)
         if let id = aspect { storyTap(id, r) }
-        storyTap("command.photo.rotateLeft", r)
+        rotateLeftInCrop(r)
         storyTap("command.crop.reset", r)
         uxAudit(story: "crop", r)
         finishStory("crop", r)
@@ -109,7 +241,7 @@ final class UserStoryUITests: LightCraftUITestCase {
     func testStoryDSaveBackAndRevert() {
         defer { flushNotes() }
         let r = StoryRecorder()
-        startLibrary()
+        startLibraryRecording(r)
         openStoryPhoto(r)
         storyEnterValue("control.light.exposure", "1", r)
         let edited = exposureValue()
@@ -230,7 +362,7 @@ final class UserStoryUITests: LightCraftUITestCase {
     func testStoryIKeyboardShortcuts() {
         defer { flushNotes() }
         let r = StoryRecorder()
-        startLibrary()
+        startLibraryRecording(r)
         // Grid: P (pick), 3 (rating), right arrow (selection), Cmd+Z (undo). Each is recorded, not asserted.
         keyProbe("p (grid)") { app.typeKey("p", modifierFlags: []) }
         keyProbe("3 (grid)") { app.typeKey("3", modifierFlags: []) }
@@ -247,16 +379,6 @@ final class UserStoryUITests: LightCraftUITestCase {
         uxAudit(story: "keyboard-shortcuts", r)
         finishStory("keyboard-shortcuts", r)
         storyAssertAll("keyboard-shortcuts", r)
-    }
-
-    /// Sends one shortcut and records whether the visible state changed (a note, not an assertion).
-    private func keyProbe(_ label: String, _ send: () -> Void) {
-        let before = stateSignature()
-        send()
-        pause(1)
-        let after = stateSignature()
-        note("key \(label): effect=\(before != after)")
-        if before == after { note("key \(label): no visible change (before \(before))") }
     }
 
     // MARK: j. Multi-finger undo and redo

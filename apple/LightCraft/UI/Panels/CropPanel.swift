@@ -33,13 +33,20 @@ struct CropPanel: View {
                         DevelopSlider(model: model, control: angle)
                     }
                     Text("Rotate & Flip").font(.headline)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
-                        action("photo.rotateLeft", "Rotate Left", "rotate.left")
-                        action("photo.rotateRight", "Rotate Right", "rotate.right")
-                        action("photo.flipHorizontal", "Flip Horizontal", "arrow.left.and.right.righttriangle.left.righttriangle.right")
-                        action("photo.flipVertical", "Flip Vertical", "arrow.up.and.down.righttriangle.up.righttriangle.down")
-                        action("crop.rotateAspect", "Rotate Crop", "rectangle.landscape.rotate")
-                        action("crop.autoStraighten", "Auto Straighten", "wand.and.stars")
+                    // A plain Grid (not lazy): every button exists, with its identifier, even below the scroll's fold.
+                    Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                        GridRow {
+                            action("photo.rotateLeft", "Rotate Left", "rotate.left")
+                            action("photo.rotateRight", "Rotate Right", "rotate.right")
+                        }
+                        GridRow {
+                            action("photo.flipHorizontal", "Flip Horizontal", "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                            action("photo.flipVertical", "Flip Vertical", "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                        }
+                        GridRow {
+                            action("crop.rotateAspect", "Rotate Crop", "rectangle.landscape.rotate")
+                            action("crop.autoStraighten", "Auto Straighten", "wand.and.stars")
+                        }
                     }
                     HStack {
                         Button {
@@ -65,6 +72,7 @@ struct CropPanel: View {
         }
         .buttonStyle(.glass)
         .disabled(!model.isEnabled(id))
+        .accessibilityLabel(title)
         .accessibilityIdentifier("command.\(id)")
     }
 }

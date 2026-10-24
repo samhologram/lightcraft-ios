@@ -19,57 +19,62 @@ struct InfoPanel: View {
 
     var body: some View {
         if let photo = model.activePhoto {
-            List {
-                Section("Title") {
-                    TextField("Title", text: $title)
-                        .focused($titleFocused)
-                        .submitLabel(.done)
-                        .onSubmit { commitTitle(photo) }
-                        .accessibilityIdentifier("info.title")
-                }
-                Section("File") {
-                    row("Name", photo.fileName)
-                    row("Format", photo.format)
-                    row("Size", "\(photo.width) × \(photo.height)")
-                    if let captured = photo.captured { row("Captured", captured) }
-                    if !photo.camera.isEmpty { row("Camera", photo.camera) }
-                    if !photo.lens.isEmpty { row("Lens", photo.lens) }
-                    row("Rating", photo.rating == 0 ? "None" : String(repeating: "★", count: Int(photo.rating)))
-                    row("Flag", photo.flag.capitalized)
-                    row("Edited", photo.edited ? "Yes" : "No")
-                }
-                Section {
-                    // A plain button row (a DisclosureGroup's own identifier is not exposed on iPad).
-                    Button {
-                        withAnimation { showTags.toggle() }
-                    } label: {
-                        HStack {
-                            Text("All Metadata")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(showTags ? 90 : 0))
-                        }
-                        .contentShape(Rectangle())
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    group("Title") {
+                        TextField("Title", text: $title)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($titleFocused)
+                            .submitLabel(.done)
+                            .onSubmit { commitTitle(photo) }
+                            .accessibilityIdentifier("info.title")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(showTags ? "Expanded" : "Collapsed")
-                    .accessibilityIdentifier("info.allMetadata")
-                    if showTags {
-                        if tags.isEmpty {
-                            Text("No metadata.").foregroundStyle(.secondary)
+                    group("File") {
+                        row("Name", photo.fileName)
+                        row("Format", photo.format)
+                        row("Size", "\(photo.width) × \(photo.height)")
+                        if let captured = photo.captured { row("Captured", captured) }
+                        if !photo.camera.isEmpty { row("Camera", photo.camera) }
+                        if !photo.lens.isEmpty { row("Lens", photo.lens) }
+                        row("Rating", photo.rating == 0 ? "None" : String(repeating: "★", count: Int(photo.rating)))
+                        row("Flag", photo.flag.capitalized)
+                        row("Edited", photo.edited ? "Yes" : "No")
+                    }
+                    group(nil) {
+                        // A plain button row (a DisclosureGroup's own identifier is not exposed on iPad).
+                        Button {
+                            withAnimation { showTags.toggle() }
+                        } label: {
+                            HStack {
+                                Text("All Metadata")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .rotationEffect(.degrees(showTags ? 90 : 0))
+                            }
+                            .frame(minHeight: 36)
+                            .contentShape(Rectangle())
                         }
-                        ForEach(tags) { t in
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(verbatim: t.name).font(.caption).foregroundStyle(.secondary)
-                                Text(verbatim: t.value).font(.footnote).textSelection(.enabled)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("All Metadata")
+                        .accessibilityValue(showTags ? "Expanded" : "Collapsed")
+                        .accessibilityIdentifier("info.allMetadata")
+                        if showTags {
+                            if tags.isEmpty {
+                                Text("No metadata.").foregroundStyle(.secondary)
+                            }
+                            ForEach(tags) { t in
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(verbatim: t.name).font(.caption).foregroundStyle(.secondary)
+                                    Text(verbatim: t.value).font(.footnote).textSelection(.enabled)
+                                }
                             }
                         }
                     }
                 }
+                .padding(16)
             }
-            .listStyle(.insetGrouped)
             .onChange(of: photo.id, initial: true) { _, _ in
                 title = photo.title
                 tags = []
@@ -85,6 +90,17 @@ struct InfoPanel: View {
 
     private func row(_ label: String, _ value: String) -> some View {
         LabeledContent(label) { Text(verbatim: value).textSelection(.enabled) }
+    }
+
+    /// A titled card standing in for a List section; the controls inside keep their own identifiers.
+    private func group<Content: View>(_ title: String?, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let title { Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase) }
+            VStack(alignment: .leading, spacing: 10) { content() }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     private func commitTitle(_ photo: PhotoInfo) {

@@ -172,6 +172,32 @@ extension LibraryModel {
         }
     }
 
+    /// Pastes the copied edit settings onto the asset at `index` without opening it (grid context menu), then
+    /// writes the result back to Photos (same path as leaving the loupe) so the asset shows as edited.
+    /// The open photo's own pending edits are committed first and the previous selection is restored, so the
+    /// loupe's write-back never attributes this photo's settings to another asset.
+    func pasteSettings(toAssetAt index: Int) async {
+        guard !samplesMode, let local = photos.localIdentifier(at: index) else { return }
+        commitEdits()
+        do {
+            let id = try await engineID(forAsset: local)
+            let previous = state.active
+            select(id)
+            let applied = run("develop.paste")
+            let json = try? handle.developJson(id: id)
+            if let previous, previous != id { select(previous) }
+            if local == openLocalID, let json { baselineJSON = json }
+            guard applied, let json else { return }
+            let previousTask = writeTask
+            writeTask = Task { [weak self] in
+                await previousTask?.value
+                await self?.writeBack(local: local, engineID: id, settings: json)
+            }
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func openEngineID() -> UInt64? {
         guard let local = openLocalID else { return nil }
         return AppEnvironment.shared.map.engineID(for: local)

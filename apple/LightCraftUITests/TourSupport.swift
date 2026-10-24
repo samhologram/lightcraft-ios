@@ -121,7 +121,7 @@ class TourTestCase: LightCraftUITestCase {
             let button = springboard.alerts.buttons[label].firstMatch
             if button.waitForExistence(timeout: 2) { button.tap(); break }
         }
-        let ready = app.descendants(matching: .any)["demoReady"]
+        let ready = app.descendants(matching: .any)["demoReady"].firstMatch
         var attempts = 0
         while attempts < 3 && !overBudget {
             attempts += 1
@@ -216,7 +216,9 @@ class TourTestCase: LightCraftUITestCase {
 
     /// On screen and tappable. The frame is checked first: `isHittable` itself fails the test for
     /// elements scrolled far out of view.
-    func canTap(_ e: XCUIElement) -> Bool {
+    func canTap(_ candidate: XCUIElement) -> Bool {
+        // firstMatch: a query that matches several elements throws "Multiple matching elements found" on frame access.
+        let e = candidate.firstMatch
         guard e.exists else { return false }
         let f = e.frame
         let w = app.windows.firstMatch.frame
@@ -623,7 +625,7 @@ class TourTestCase: LightCraftUITestCase {
     }
 
     func expandPalette() {
-        let nav = app.navigationBars["Command Palette"]
+        let nav = app.navigationBars["Command Palette"].firstMatch
         guard nav.exists else { return }
         let from = nav.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let to = from.withOffset(CGVector(dx: 0, dy: -400))

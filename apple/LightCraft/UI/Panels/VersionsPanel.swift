@@ -43,8 +43,9 @@ struct VersionsPanel: View {
                                 Button(role: .destructive) { model.run("version.delete", ["index": v.id]) } label: { Label("Delete", systemImage: "trash") }
                                     .accessibilityIdentifier("command.version.delete")
                             } label: {
-                                Image(systemName: "ellipsis.circle").frame(width: 34, height: 34)
+                                Label("Version Options", systemImage: "ellipsis.circle").labelStyle(.iconOnly).frame(width: 34, height: 34)
                             }
+                            .accessibilityLabel("Version Options")
                             .accessibilityIdentifier("version.menu.\(v.id)")
                         }
                         .contentShape(Rectangle())

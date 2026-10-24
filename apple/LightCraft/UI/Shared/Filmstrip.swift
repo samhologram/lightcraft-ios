@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 @preconcurrency import LightCraftKit
 
 /// Horizontal strip of the photos in view; tapping one makes it the active photo.
@@ -29,6 +30,7 @@ struct Filmstrip: View {
                         }
                         .buttonStyle(.plain)
                         .id(id)
+                        .accessibilityLabel("Photo \(id)")
                         .accessibilityIdentifier("filmstrip.\(id)")
                         .accessibilityAddTraits(active ? .isSelected : [])
                     }
@@ -57,6 +59,16 @@ private struct PhotosFilmstrip: View {
 
     @Environment(\.displayScale) private var displayScale
 
+    /// "Photo n" (1-based), plus "edited" and "favorite" when known.
+    static func label(index: Int, asset: PHAsset?) -> String {
+        var text = "Photo \(index + 1)"
+        if let asset {
+            if asset.hasAdjustments { text += ", edited" }
+            if asset.isFavorite { text += ", favorite" }
+        }
+        return text
+    }
+
     var body: some View {
         let photos = model.photos
         ScrollViewReader { proxy in
@@ -77,6 +89,7 @@ private struct PhotosFilmstrip: View {
                         }
                         .buttonStyle(.plain)
                         .id(index)
+                        .accessibilityLabel(Self.label(index: index, asset: photos.asset(at: index)))
                         .accessibilityIdentifier("filmstrip.\(index)")
                         .accessibilityAddTraits(active ? .isSelected : [])
                     }

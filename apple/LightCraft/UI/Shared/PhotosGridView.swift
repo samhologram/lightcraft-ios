@@ -196,7 +196,7 @@ private struct PhotosCell: View {
         Divider()
         Button { act("develop.copy") } label: { Label("Copy Edit Settings", systemImage: "doc.on.doc") }
             .accessibilityIdentifier("photos.copySettings")
-        Button { act("develop.paste", openFirst: true) } label: { Label("Paste Edit Settings", systemImage: "doc.on.clipboard") }
+        Button { Task { await model.pasteSettings(toAssetAt: index) } } label: { Label("Paste Edit Settings", systemImage: "doc.on.clipboard") }
             .accessibilityIdentifier("photos.pasteSettings")
         Button { act("develop.reset", openFirst: true) } label: { Label("Reset Edits", systemImage: "arrow.counterclockwise") }
             .accessibilityIdentifier("photos.reset")

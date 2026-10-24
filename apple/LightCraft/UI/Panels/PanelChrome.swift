@@ -40,7 +40,8 @@ struct PanelsMenu: View {
                     .accessibilityIdentifier("control.panels.reset")
             }
         } label: {
-            Image(systemName: "square.stack.3d.up")
+            Label("Panels", systemImage: "square.stack.3d.up")
+                .labelStyle(.iconOnly)
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
@@ -142,10 +143,10 @@ struct PanelHeaderActions: View {
     }
 
     private func glyph(_ title: String, _ symbol: String) -> some View {
-        Image(systemName: symbol)
+        Label(title, systemImage: symbol)
+            .labelStyle(.iconOnly)
             .frame(width: 34, height: 34)
             .contentShape(Rectangle())
-            .accessibilityLabel(title)
     }
 
     private func icon(_ title: String, _ symbol: String, id: String, role: ButtonRole? = nil, enabled: Bool? = nil,
