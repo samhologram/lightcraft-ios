@@ -126,6 +126,7 @@ private struct PhotosCell: View {
         .accessibilityLabel("Photo \(index + 1)")
         .accessibilityIdentifier("photo.\(index)")
         .task(id: "\(Int(edge * displayScale))-\(photos.revision)-\(photos.currentID)") {
+            photos.noteVisible(index)
             let result = await photos.thumbnail(at: index, edge: max(64, edge * displayScale))
             guard !Task.isCancelled else { return }
             image = result

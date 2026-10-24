@@ -48,13 +48,13 @@ final class PhotosLibrary {
 
     @ObservationIgnored private var fetch: PHFetchResult<PHAsset>?
     @ObservationIgnored private var rawAssets: [PHAsset] = []
-    @ObservationIgnored private var rawIDs: [String]?
+    @ObservationIgnored private var rawKnown: [String: Bool] = [:]
+    @ObservationIgnored private var rawWanted: Range<Int>?
+    @ObservationIgnored private var rawWorker: Task<Void, Never>?
     @ObservationIgnored private let cache = PHCachingImageManager()
     @ObservationIgnored private var forwarder: PhotoChangeForwarder?
     @ObservationIgnored private var changeTask: Task<Void, Never>?
     @ObservationIgnored private var sourcesTask: Task<Void, Never>?
-    @ObservationIgnored private var rawScanTask: Task<Void, Never>?
-    @ObservationIgnored private var lastRawScan: Date?
 
     var isAuthorized: Bool { status == .authorized || status == .limited }
     var isDenied: Bool { status == .denied || status == .restricted }
@@ -99,17 +99,17 @@ final class PhotosLibrary {
             forwarder = f
             PHPhotoLibrary.shared().register(f)
         }
-        reload(rescanRaw: true)
+        reload()
     }
 
     /// Large libraries change constantly (iCloud sync, our own write-backs): coalesce bursts of change
-    /// notifications into one reload instead of one full reload (and RAW scan) per notification.
+    /// notifications into one reload instead of one full reload per notification.
     private func scheduleReload() {
         changeTask?.cancel()
         changeTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            self?.reload(rescanRaw: true)
+            self?.reload()
         }
     }
 
@@ -122,19 +122,18 @@ final class PhotosLibrary {
         return o
     }
 
-    private func reload(rescanRaw: Bool) {
+    private func reload() {
         guard isAuthorized else { return }
         // The grid's fetch is lazy and cheap; show it at once. Album counts cost one query per album, so
         // they are computed off the main thread (on launch the main thread must stay free: watchdog).
         applyCurrent()
         loaded = true
         reloadSources()
-        if rescanRaw { scanRaw() }
     }
 
     private func reloadSources() {
         sourcesTask?.cancel()
-        let rawCount = rawIDs?.count
+        let rawCount: Int? = rawKnown.isEmpty ? nil : rawAssets.count
         sourcesTask = Task { [weak self] in
             let loaded = await Task.detached(priority: .userInitiated) { Self.loadSources(rawCount: rawCount) }.value
             guard !Task.isCancelled, let self else { return }
@@ -170,42 +169,62 @@ final class PhotosLibrary {
         revision += 1
     }
 
-    /// Finds the RAW assets in the background (PhotoKit has no RAW smart album).
-    /// Reading every asset's resources is slow and allocates per asset, so on a large library: one scan at
-    /// a time (a newer one cancels the older), at most once a minute, with an autorelease pool per asset so
-    /// memory stays flat (unbounded autoreleased resources got the app killed for memory).
-    private func scanRaw() {
-        let wait = lastRawScan.map { max(0, 60 - Date().timeIntervalSince($0)) } ?? 0
-        rawScanTask?.cancel()
-        rawScanTask = Task { [weak self] in
-            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            guard !Task.isCancelled else { return }
-            self?.lastRawScan = Date()
-            let scan = Task.detached(priority: .background) { () -> [String]? in
-                var out: [String] = []
-                var cancelled = false
-                PHAsset.fetchAssets(with: Self.options()).enumerateObjects { asset, index, stop in
-                    if index % 200 == 0, Task.isCancelled { cancelled = true; stop.pointee = true; return }
-                    autoreleasepool {
-                        if Self.rawResource(of: PHAssetResource.assetResources(for: asset)) != nil { out.append(asset.localIdentifier) }
-                    }
-                }
-                return cancelled ? nil : out
+    /// RAW status of the photos the grid shows (PhotoKit has no RAW smart album, and reading every asset's
+    /// resources is slow and allocates per asset: scanning a whole large library got the app killed for
+    /// memory). Only the visible photos and the next `rawLookahead` are checked, in small background batches
+    /// that follow the scroll; results are kept by local identifier. The RAW album lists the RAWs found so far.
+    static let rawLookahead = 200
+
+    /// Called by each grid cell as it appears.
+    func noteVisible(_ index: Int) {
+        guard let fetch, index >= 0, index < fetch.count else { return }
+        rawWanted = index..<min(fetch.count, index + 1 + Self.rawLookahead)
+        if rawWorker == nil { rawWorker = Task { [weak self] in await self?.drainRaw() } }
+    }
+
+    private func drainRaw() async {
+        defer { rawWorker = nil }
+        while let range = rawWanted, let fetch {
+            rawWanted = nil
+            let ids = range.compactMap { $0 < fetch.count ? fetch.object(at: $0).localIdentifier : nil }
+                .filter { rawKnown[$0] == nil }
+            var offset = 0
+            while offset < ids.count, rawWanted == nil, !Task.isCancelled {
+                let batch = Array(ids[offset..<min(offset + 40, ids.count)])
+                offset += batch.count
+                let flags = await Task.detached(priority: .utility) { Self.rawFlags(batch) }.value
+                merge(rawFlags: flags)
             }
-            let found = await withTaskCancellationHandler { await scan.value } onCancel: { scan.cancel() }
-            guard let ids = found, !Task.isCancelled, let self else { return }
-            let changed = ids != self.rawIDs
-            self.rawIDs = ids
-            guard changed else { return }
-            var assets: [PHAsset] = []
-            PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil).enumerateObjects { a, _, _ in assets.append(a) }
-            self.rawAssets = assets.sorted { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) }
-            if let i = self.sources.firstIndex(where: { $0.id == "raw" }) {
-                let s = self.sources[i]
-                self.sources[i] = PhotosSource(id: s.id, title: s.title, symbol: s.symbol, count: ids.count, kind: s.kind, group: s.group)
-            }
-            if self.currentID == "raw" { self.applyCurrent() }
+            if Task.isCancelled { return }
         }
+    }
+
+    nonisolated private static func rawFlags(_ ids: [String]) -> [String: Bool] {
+        var out: [String: Bool] = [:]
+        PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil).enumerateObjects { asset, _, _ in
+            autoreleasepool {
+                out[asset.localIdentifier] = rawResource(of: PHAssetResource.assetResources(for: asset)) != nil
+            }
+        }
+        return out
+    }
+
+    private func merge(rawFlags flags: [String: Bool]) {
+        var foundNew = false
+        for (id, isRaw) in flags {
+            if rawKnown[id] == nil && isRaw { foundNew = true }
+            rawKnown[id] = isRaw
+        }
+        guard foundNew else { return }
+        let ids = rawKnown.compactMap { $0.value ? $0.key : nil }
+        var assets: [PHAsset] = []
+        PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil).enumerateObjects { a, _, _ in assets.append(a) }
+        rawAssets = assets.sorted { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) }
+        if let i = sources.firstIndex(where: { $0.id == "raw" }) {
+            let s = sources[i]
+            sources[i] = PhotosSource(id: s.id, title: s.title, symbol: s.symbol, count: rawAssets.count, kind: s.kind, group: s.group)
+        }
+        if currentID == "raw" { applyCurrent() }
     }
 
     nonisolated private static func loadSources(rawCount: Int?) -> [PhotosSource] {
