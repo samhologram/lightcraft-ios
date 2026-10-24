@@ -1,5 +1,8 @@
 import Foundation
+import os
 @preconcurrency import LightCraftKit
+
+private let openLog = Logger(subsystem: "ca.hologram.lightcraft", category: "photos")
 
 /// The Photos library as the library: opening an asset registers (once) its cached original in the engine
 /// catalog, edits run on that engine photo, and leaving the loupe writes changed settings back to Photos.
@@ -46,6 +49,7 @@ extension LibraryModel {
             baselineJSON = try? handle.developJson(id: id)
             mode = .loupe
         } catch {
+            openLog.error("open failed for \(local, privacy: .public): \(String(describing: error), privacy: .public)")
             lastError = error.localizedDescription
         }
     }
@@ -75,10 +79,28 @@ extension LibraryModel {
             }
             return known
         }
-        // First time: cache the original (RAW when there is one) and register it in place.
+        // First time: cache the original (RAW when there is one) and register it in place. Write it beside
+        // the cache and swap it in only once complete: deleting first left the engine (which may already know
+        // this file) pointing at nothing whenever the write then failed.
         let folder = AppEnvironment.originalsFolder(for: local)
-        try? FileManager.default.removeItem(at: folder)
-        let file = try await photos.writeOriginal(localID: local, into: folder)
+        let staging = folder.deletingLastPathComponent().appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let written = try await photos.writeOriginal(localID: local, into: staging)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent(written.lastPathComponent)
+        if FileManager.default.fileExists(atPath: file.path) {
+            _ = try FileManager.default.replaceItemAt(file, withItemAt: written)
+        } else {
+            try FileManager.default.moveItem(at: written, to: file)
+        }
+        if let known = env.map.engineID(for: local), handle.photoInfo(id: known) != nil {
+            // The engine already has this photo (its cached file was missing or moved): point it at the file.
+            let json = Self.encode(["id": known, "path": file.path]) ?? "{}"
+            let handle = self.handle
+            _ = try? await Task.detached(priority: .userInitiated) { try handle.execute(id: "photo.relink", paramsJson: json) }.value
+            env.relinked.insert(known)
+            return known
+        }
         let settings = await photos.adjustmentJSON(localID: local)
         let json = Self.encode(["paths": [file.path], "mode": "add"]) ?? "{}"
         let handle = self.handle
@@ -104,7 +126,7 @@ extension LibraryModel {
 
     private func cachedFile(for local: String) -> URL? {
         let folder = AppEnvironment.originalsFolder(for: local)
-        return (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?.first
+        return (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles))?.first
     }
 
     // MARK: Writing back
