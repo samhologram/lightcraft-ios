@@ -428,7 +428,40 @@ final class PhotosLibrary {
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = true
         try await Self.writeResource(Unchecked(value: resource), to: url, options: options)
+        if let type = UTType(resource.uniformTypeIdentifier), type.conforms(to: .heif) || type.conforms(to: .heic) {
+            let tiff = try await Task.detached(priority: .userInitiated) { try Self.transcodeHEIF(url) }.value
+            try? FileManager.default.removeItem(at: url)
+            return tiff
+        }
         return url
+    }
+
+    /// The engine ships without an HEVC decoder (patents: upstream leaves it to the distributor), so HEIC/HEIF
+    /// originals are decoded by iOS's own licensed decoder and handed to the engine as a 16-bit TIFF in the
+    /// photo's colour space, with its metadata (EXIF, orientation) carried over. LZW keeps the file smaller.
+    nonisolated static func transcodeHEIF(_ url: URL) throws -> URL {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldAllowFloat: true] as CFDictionary) else {
+            throw error("iOS could not decode this HEIC photo.")
+        }
+        let space = image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.displayP3) ?? CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 16,
+                                      bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.byteOrder16Little.rawValue) else {
+            throw error("Not enough memory to convert this HEIC photo.")
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let deep = context.makeImage() else { throw error("Not enough memory to convert this HEIC photo.") }
+        let out = url.deletingPathExtension().appendingPathExtension("tif")
+        try? FileManager.default.removeItem(at: out)
+        guard let destination = CGImageDestinationCreateWithURL(out as CFURL, UTType.tiff.identifier as CFString, 1, nil) else {
+            throw error("Could not write the converted photo.")
+        }
+        var properties = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]) ?? [:]
+        properties[kCGImagePropertyTIFFDictionary] = [kCGImagePropertyTIFFCompression: 5]   // LZW
+        CGImageDestinationAddImage(destination, deep, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { throw error("Could not write the converted photo.") }
+        return out
     }
 
     nonisolated private static func writeResource(_ resource: Unchecked<PHAssetResource>, to url: URL, options: PHAssetResourceRequestOptions) async throws {

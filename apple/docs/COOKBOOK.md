@@ -72,6 +72,17 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   | layout/design | Affinity Publisher, Canva |
 - Write the reference and 5–10 conventions taken from it in `apple/README.md` before building the UI. Review
   screenshots against it.
+- Media in, everywhere: every app can (a) start a new document/project from a photo, video or file, and (b) import
+  into the current context (canvas, selected layer/frame, timeline, bin, library) from the camera roll
+  (`PhotosPicker`, no full-library permission needed), Files / iCloud Drive / any file provider
+  (`fileImporter`, security-scoped URLs, opened in place or copied per the data model), drag and drop and paste.
+  Entry points: new-document sheet, the panel header that owns the context (e.g. Layers "Place", Media "Import"),
+  File ▸ Import / Place, ⌘K and the context menu. Supported types come from the engine's import formats.
+- Decode with Apple's native, hardware-accelerated decoders, then hand pixels/samples to the engine through the
+  bridge: ImageIO / Core Image for images (HEIC, ProRAW/RAW, JPEG, PNG, TIFF, WebP, with orientation, colour
+  profile, EXIF), AVFoundation / VideoToolbox for video and audio (HEVC, H.264, ProRes, AAC), PDFKit for PDF, Live
+  Photos via PhotosUI. Keep the engine's own decoders only for its native document formats or where it must
+  re-read the original (non-destructive RAW develop), and note any gap for upstream.
 - Use the engine's existing interchange features for the ecosystem users come from (e.g. importing the reference
   app's presets, profiles, sidecars): the engine usually already parses them; iOS only needs the picking and the
   summary UI.
