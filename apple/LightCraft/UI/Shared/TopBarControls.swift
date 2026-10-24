@@ -60,6 +60,20 @@ struct ShareButton: View {
     }
 }
 
+/// PhotoCraft-style trailing sidebar control for the iPad dock and compact iPhone panel sheet.
+struct PanelVisibilityButton: View {
+    let model: LibraryModel
+
+    var body: some View {
+        Button {
+            model.toggleInspectorDock()
+        } label: {
+            Label(model.inspectorVisible ? "Hide Panels" : "Show Panels", systemImage: "sidebar.trailing")
+        }
+        .accessibilityIdentifier("toggleInspector")
+    }
+}
+
 /// The "…" overflow menu with the Photo menu (and the other desktop menus below it).
 struct OverflowMenu: View {
     let model: LibraryModel

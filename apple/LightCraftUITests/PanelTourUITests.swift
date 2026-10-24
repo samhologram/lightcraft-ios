@@ -97,6 +97,7 @@ final class PanelTourUITests: TourTestCase {
         var performed = 0
         var misses: [String] = []
         var unavailable: [String] = []
+        var skipUnavailableBlemishes = false
         var slideTried = 0, slideChanged = 0
         if panel == "edit" {
             // Start from the photo's defaults so repeated runs on the same catalog never accumulate (exposure hit +5.00).
@@ -110,6 +111,11 @@ final class PanelTourUITests: TourTestCase {
         var alertTexts: [String] = []
         var refusals: [String] = []
         for step in Self.steps[panel] ?? [] {
+            if panel == "remove" && step.prefix == "command.spot.findBlemishes" && skipUnavailableBlemishes {
+                // Its disabled state was checked in the same Find popover used for Dust. Opening a second
+                // popover solely to inspect an unavailable action would leave a selector to dismiss.
+                continue
+            }
             if timeUp { misses.append("\(step.prefix)(budget)"); break }
             var target = hit(prefix: step.prefix)
             var tries = 0
@@ -129,6 +135,18 @@ final class PanelTourUITests: TourTestCase {
             }
             let tid = target.identifier.isEmpty ? target.label : target.identifier
             if viaMenu { details.append("menu") }
+            if panel == "remove" && tid == "command.spot.findDust" && viaMenu {
+                // Inspect both choices while this one selector is open. The YuNet model is optional;
+                // a disabled Blemishes action is evidence of unavailability, never a performed action.
+                let blemishes = app.buttons["command.spot.findBlemishes"].firstMatch
+                if !blemishes.exists {
+                    misses.append("command.spot.findBlemishes(missing-identifier)")
+                } else if !blemishes.isEnabled {
+                    unavailable.append("command.spot.findBlemishes: face model not installed; NOT TESTED")
+                    skipUnavailableBlemishes = true
+                }
+                note("panel.remove: Find opened; Blemishes present=\(blemishes.exists), enabled=\(blemishes.exists && blemishes.isEnabled)")
+            }
             guard target.isEnabled else {
                 if panel == "remove" && tid == "command.spot.findBlemishes" {
                     // The YuNet face model requires separate terms acceptance and installation. This panel's
@@ -192,7 +210,7 @@ final class PanelTourUITests: TourTestCase {
         undoAll()
         if !stacked { closePanelIfOpen() }
         if !alive(name) { return }
-        if performed > 0 && !(alertTexts.count + refusals.count > 0 && false) {
+        if performed > 0 {
             let missedControl = !misses.isEmpty
             let refused = !alertTexts.isEmpty || !refusals.isEmpty
             let cause = refused ? "engine-refused" : (missedControl ? "control-not-reached" : (unavailable.isEmpty ? "" : "partial-model-unavailable"))
@@ -208,7 +226,7 @@ final class PanelTourUITests: TourTestCase {
     private func closeActionSelector(itemID: String) -> Bool {
         for _ in 0..<2 {
             if !element(itemID).exists { return true }
-            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap()
+            dismissOpenSelector()
             pause(0.4)
         }
         return !element(itemID).exists

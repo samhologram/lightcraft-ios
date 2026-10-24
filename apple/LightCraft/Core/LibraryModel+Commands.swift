@@ -70,7 +70,7 @@ extension LibraryModel {
             inspectorVisible = false
             activeTool = nil
         case "view.rightPanel":
-            inspectorVisible.toggle()
+            toggleInspectorDock()
         case "view.photoGrid", "view.squareGrid", "view.gridToggle", "view.back":
             mode = .grid
             activeTool = nil

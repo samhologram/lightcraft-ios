@@ -351,6 +351,11 @@ engine's RAW decoder is kept for originals (non-destructive develop re-reads the
   Tool commands remain reachable through their owning panel, the menu bar and command palette. The system Window
   menu retains every panel entry, and full-screen canvas keeps its dedicated exit control.
 - iPhone continues to use a panel sheet, with panel selection in the sheet rather than a floating rail.
+- In the loupe toolbar on iPad and iPhone, one `sidebar.trailing` button (`toggleInspector`) says
+  “Hide Panels” or “Show Panels” and toggles the trailing dock or panel sheet. Hiding preserves the
+  active panel and persisted dock groups, order, and collapsed state. Showing scrolls the selected
+  tab group back into view without changing that state; Window/menu panel commands still open the
+  dock and reveal their requested tab. Full-screen mode retains its dedicated exit control.
 - Accessibility: `control.panelMenu` is the dock add menu; `panelTab.<id>` identifies each persistent tab;
   `panel.<id>` identifies the selected panel body; `panelGroup.<index>` and `panelCollapse.<index>` identify group
   controls. Keep command ids on panel actions and menu entries. Tours must open every panel through an actual UI

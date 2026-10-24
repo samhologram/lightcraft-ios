@@ -166,6 +166,7 @@ struct PadLibraryView: View {
             }
             if model.mode == .grid && !model.samplesMode { MediaImportButton(model: model) }
             if model.mode == .loupe { FullScreenButton(model: model) }
+            if model.mode == .loupe { PanelVisibilityButton(model: model) }
             UndoRedoButtons(model: model)
             ShareButton(model: model)
             PaletteButton(model: model)

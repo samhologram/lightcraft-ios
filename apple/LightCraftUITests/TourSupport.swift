@@ -311,11 +311,26 @@ class TourTestCase: LightCraftUITestCase {
             opener.tap()
             pause(0.8)
             if let e = hitMenuItem(prefix: prefix) { return e }
-            // Dismiss: Escape-equivalent tap on a neutral corner of the window.
-            if app.keyboards.count == 0 { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap() }
+            if app.keyboards.count == 0 { dismissOpenSelector() }
             pause(0.5)
         }
         return nil
+    }
+
+    /// Dismiss an open native menu or anchored popover through actual content, away from the status bar.
+    /// The loupe occupies the canvas side of the editor, outside inspector header selectors.
+    func dismissOpenSelector() {
+        let region = app.otherElements["PopoverDismissRegion"].firstMatch
+        if region.exists && region.isHittable {
+            region.tap()
+        } else {
+            let canvas = element("loupe")
+            if canvas.exists && !canvas.frame.isEmpty {
+                canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+            } else {
+                app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)).tap()
+            }
+        }
     }
 
     /// True when the iPad's persistent tab dock is present (otherwise the iPhone's strip/sheet).

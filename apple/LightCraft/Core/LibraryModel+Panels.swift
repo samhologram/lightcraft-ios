@@ -2,6 +2,19 @@ import Foundation
 
 /// Panel state shared by the dock, Window menu and command palette.
 extension LibraryModel {
+    /// Toolbar and View menu visibility action. Keep the layout intact, including collapsed groups.
+    /// A newly mounted dock uses the reveal tick to bring the selected group back into view.
+    func toggleInspectorDock() {
+        if inspectorVisible {
+            inspectorVisible = false
+            return
+        }
+        panelRevealTarget = panelLayout.groupIndex(containing: activePanel) != nil
+            ? activePanel : panelLayout.groups.first?.selected
+        panelRevealTick += 1
+        inspectorVisible = true
+    }
+
     func isPanelShown(_ panel: Panel) -> Bool {
         inspectorVisible && activePanel == panel
     }

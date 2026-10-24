@@ -118,6 +118,7 @@ struct PhoneLibraryView: View {
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 FullScreenButton(model: model)
+                PanelVisibilityButton(model: model)
                 UndoRedoButtons(model: model)
                 ShareButton(model: model)
                 OverflowMenu(model: model)

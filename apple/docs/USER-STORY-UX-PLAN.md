@@ -1,5 +1,21 @@
 # LightCraft: user-story UX validation, iPadOS and iOS
 
+## Current evidence checkpoint — 2026-10-24 18:18 EDT
+
+This checkpoint supersedes earlier status statements below. Astra reviews source/test design and Luna executes runtime cases. Latest observations are attributed to the parent/Luna/Sol handoff where no separate log inspection is stated; no new runtime test was performed for this report. Times identify this review, not invented execution timestamps.
+
+| Platform | Classification | Current evidence and limit | Evidence path / attribution |
+|---|---|---|---|
+| iPadOS | PASS | Seven resumed stories A/C/D/E/F/H/I; four Swift units and20 Rust tests. Crop/Remove can read repaired cached-original paths. F creates a mask and changes exposure0→1. | `apple/build/results/ipad-LightCraftUITests-UserStoryUITests-testStoryFMasking.log` and corresponding story logs; parent/Luna handoff |
+| iPadOS | PASS, limited action coverage | Find Dust popover is proven to close. This establishes dispatch/dismissal, not successful spot removal from a known defective-photo fixture. | `apple/build/results/ipad-LightCraftUITests-PanelTourUITests-testPanelsPortrait.log`; parent/Luna handoff |
+| iPadOS | Test blockage / unreached | Tour then reopened disabled Find Blemishes and tapped status-bar coordinate(.02,.02); overlay remained and blocked seven later panels. This is not proof those panels are broken. Test-only change inspects unavailable capability before Dust and does not reopen it; compiled focused Remove/Masking TOUR_ONLY rerun pending. | Same tour log; `apple/build/results/remove-tour-selector-build.log` |
+| Both | UNAVAILABLE / UNIMPLEMENTED | Optional face model is unavailable because terms have not been accepted: automatic Find Blemishes NOT TESTED. Manual spot-placement Remove overlay is UNIMPLEMENTED; misleading copy was corrected. Neither counts as passed capability. | RemovePanel/source capability audit and parent/Sol handoff |
+| iOS | NOT TESTED | Phone UX execution has not begun for this app; iPad successes cannot be copied into phone results. | No phone runtime evidence in current handoff |
+
+**Common limits:** Native DocumentGroup edit → normal close → process relaunch → reopen of the same native file remains unverified. UndoManager registration paths were found; absent explicit publisher sends are not an autosave defect. Photo's explicit flat-image copy queue is a separate verified workflow. Do not classify every raw control-frame count below44pt as a UX defect: stock toolbar controls may use system hit regions; require actual hit-testing/interaction evidence. Light's missing manual removal and unavailable optional model remain explicit capability gaps. Current phone results apply only to Photo EditCopy; the other apps' iPhone UX remains unrun.
+
+Historical matrices and earlier evidence follow; retain their executable selectors, but use this checkpoint for current pass/fail classification.
+
 Reuse current story/tour ownership: Light orchestrator owns F and tour fixes. Latest parent/Luna evidence: A/C/D/E/H/I passed, F passed with a created Subject mask and exposure 0→1, and the moved-original Swift regression passed. The portrait tour remains incomplete: the latest run reached Edit, Profiles and Crop, then Remove's native Find menu blocked seven later tabs. An anchored Remove popover now builds but awaits simulator validation. Guided Upright overlay, model-dependent blemish finder, Smart Album/Print/Contact Sheet are documented limitations. Confirm current implementation before declaring any old limitation fixed.
 
 ## Story-to-test matrix
