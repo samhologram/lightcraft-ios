@@ -92,26 +92,34 @@ struct PadLibraryView: View {
 
     // MARK: Loupe
 
+    /// Fixed width of the inspector column.
+    private static let inspectorWidth: CGFloat = 340
+
     private var loupe: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                LoupeView(model: model)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if !model.canvasOnly { PanelSwitcher(model: model) }
+        // A plain trailing column (not `.inspector`, which overlays the content in portrait and covered the
+        // panel switcher): the switcher, filmstrip and rating bar live in the part that shrinks, so they stay hittable.
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    LoupeView(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if !model.canvasOnly { PanelSwitcher(model: model) }
+                }
+                if !model.canvasOnly {
+                    Filmstrip(model: model)
+                    RatingFlagBar(model: model)
+                        .padding(.vertical, 6)
+                }
             }
-            if !model.canvasOnly {
-                Filmstrip(model: model)
-                RatingFlagBar(model: model)
-                    .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            if model.inspectorVisible && !model.canvasOnly {
+                Divider()
+                InspectorColumn(model: model)
+                    .frame(width: Self.inspectorWidth)
+                    .transition(.move(edge: .trailing))
             }
         }
-        .inspector(isPresented: Binding(
-            get: { model.inspectorVisible && !model.canvasOnly },
-            set: { if !model.canvasOnly { model.inspectorVisible = $0 } }
-        )) {
-            InspectorColumn(model: model)
-                .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
-        }
+        .animation(.snappy, value: model.inspectorVisible && !model.canvasOnly)
     }
 
     // MARK: Toolbar

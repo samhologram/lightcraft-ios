@@ -1,7 +1,8 @@
 import XCTest
 
 /// Opens every panel (`panel.<id>`) through the real UI, acts on its first controls, screenshots it
-/// and returns to a usable state. Only a crash fails; misses are in the `-tour-summary` attachment.
+/// and returns to a usable state. A crash or any NOT-REACHED panel fails the test (list in the message);
+/// details are also in the `-tour-summary` attachment.
 @MainActor
 final class PanelTourUITests: TourTestCase {
     func testPanelsPortrait() throws { try tour(landscape: false) }
@@ -11,7 +12,7 @@ final class PanelTourUITests: TourTestCase {
     private struct Step { let prefix: String; let kind: Kind }
 
     private static let steps: [String: [Step]] = [
-        "edit": [Step(prefix: "control.", kind: .slide), Step(prefix: "command.develop.auto", kind: .tap)],
+        "edit": [Step(prefix: "control.light.", kind: .slide), Step(prefix: "command.develop.auto", kind: .tap)],
         "profiles": [Step(prefix: "profile.", kind: .tap)],
         "crop": [Step(prefix: "crop.aspect.", kind: .tap), Step(prefix: "command.crop.autoStraighten", kind: .tap),
                  Step(prefix: "command.photo.rotateLeft", kind: .tap), Step(prefix: "command.crop.reset", kind: .tap)],
@@ -39,6 +40,11 @@ final class PanelTourUITests: TourTestCase {
             if Date() > itemDeadline { note("panel.\(panel): exceeded the \(Int(itemBudget)) s item budget") }
         }
         shot("99-final")
+        let missed = items.filter { !$0.reached }
+        if !missed.isEmpty {
+            XCTFail("\(missed.count) of \(items.count) panels NOT-REACHED: " + missed.map { "\($0.name) [\($0.cause)]" }.joined(separator: ", "))
+        }
+        if items.isEmpty { XCTFail("The panel tour visited nothing") }
     }
 
     private func visit(_ panel: String) {
@@ -52,16 +58,29 @@ final class PanelTourUITests: TourTestCase {
             return
         }
         button.tap()
-        guard element("panelTitle").waitForExistence(timeout: 6) else {
-            record(name, reached: false, cause: "panel-did-not-open", "no panelTitle after tapping")
-            shot("\(panel)-notopen")
-            _ = alive(name)
-            return
-        }
-        pause(1.5)
+        let stacked = isPad && verticalSwitcher
         var details: [String] = []
-        let title = element("panelTitle").label
-        if title.replacingOccurrences(of: "And", with: "&") != Self.panelTitles[panel] { details.append("title='\(title)' expected '\(Self.panelTitles[panel] ?? "")'") }
+        if stacked {
+            // The stacked inspector: the section must exist, be expanded and be scrolled into view.
+            if let cause = revealSection(panel) {
+                record(name, reached: false, cause: cause, "tapped \(name) but \(cause) for panel.\(panel).section")
+                shot("\(panel)-notreached")
+                _ = alive(name)
+                closePanelIfOpen()
+                return
+            }
+            pause(1)
+        } else {
+            guard element("panelTitle").waitForExistence(timeout: 6) else {
+                record(name, reached: false, cause: "panel-did-not-open", "no panelTitle after tapping")
+                shot("\(panel)-notopen")
+                _ = alive(name)
+                return
+            }
+            pause(1.5)
+            let title = element("panelTitle").label
+            if title.replacingOccurrences(of: "And", with: "&") != Self.panelTitles[panel] { details.append("title='\(title)' expected '\(Self.panelTitles[panel] ?? "")'") }
+        }
         shot("\(panel)-1-opened")
         if !isPad || !verticalSwitcher { expandSheet() }
 
@@ -124,6 +143,7 @@ final class PanelTourUITests: TourTestCase {
         if !misses.isEmpty { details.append("skipped: \(misses.joined(separator: ", "))") }
 
         // Usable state again.
+        if stacked { collapseSection(panel) }
         undoAll()
         closePanelIfOpen()
         if !alive(name) { return }

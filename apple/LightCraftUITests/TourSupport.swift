@@ -293,20 +293,22 @@ class TourTestCase: LightCraftUITestCase {
 
     // MARK: Photo and panels
 
-    /// Identifiers the editor exposes once a photo is open (grid-only chrome is excluded on purpose):
-    /// the loupe container, its Full Screen button, the iPad panel switcher, the iPad Exposure slider.
-    static let loupeSignals = ["loupe", "control.fullscreen", "panelSwitcher", "control.light.exposure"]
+    /// Identifiers the editor exposes once a photo is open. On iPad the loupe container can be missing from the
+    /// accessibility tree (it is a `.contain` element under a customizable toolbar), so the other things that only
+    /// exist in the editor count too: the loupe toolbar items, the inspector column, the panel switcher, `mode.grid`
+    /// (the Library button, shown only while a photo is open), the Full Screen button, the Exposure slider.
+    static let loupeSignals = ["loupe", "inspector", "panelSwitcher", "toolbar.beforeAfter", "toolbar.zoom", "mode.grid",
+                               "control.fullscreen", "control.light.exposure", "panelTitle"]
 
-    /// The first loupe signal on screen, or nil. A plain existence check: the loupe container alone can be
-    /// missing from the accessibility tree while the editor is open (that was a false "could not open").
+    /// The first loupe signal on screen, or nil. A plain existence check.
     func loupeSignal() -> String? {
         for id in Self.loupeSignals where element(id).exists { return id }
         return nil
     }
 
-    /// Waits up to `timeout` s (default and cap 20 s) for any loupe signal; records which one it found.
-    func waitForLoupe(timeout: TimeInterval = 20) -> Bool {
-        let deadline = Date().addingTimeInterval(min(timeout, 20))
+    /// Waits up to `timeout` s (default and cap 30 s) for any loupe signal; records which one it found.
+    func waitForLoupe(timeout: TimeInterval = 30) -> Bool {
+        let deadline = Date().addingTimeInterval(min(timeout, 30))
         repeat {
             if let id = loupeSignal() {
                 note("loupe open, found '\(id)'")
@@ -324,23 +326,32 @@ class TourTestCase: LightCraftUITestCase {
         while Date() < deadline && !overBudget {
             if let cell = hit(prefix: "photo.") {
                 cell.tap()
-                return waitForLoupe()
+                // The photo opens asynchronously ("Opening…" overlay); a tap that landed before the grid was
+                // interactive is repeated once the overlay is gone and the grid is still there.
+                if waitForLoupe(timeout: 20) { return true }
+                if element("photos.opening").exists || !waitForLoupe(timeout: 10) {
+                    let present = Array(Self.loupeSignals.filter { element($0).exists })
+                    note("openFirstPhoto: no loupe signal after tapping \(cell.identifier); present: \(present)")
+                }
+                if loupeSignal() != nil { return true }
+                continue
             }
             pause(1)
         }
-        return false
+        return loupeSignal() != nil
     }
 
     /// Back to the loupe when something left it.
     func ensureLoupe() {
-        if element("loupe").exists { return }
+        if loupeSignal() != nil, !element("photos.opening").exists, hit("mode.loupe") == nil { return }
         if let b = hit("mode.loupe") { b.tap(); pause(1.5) }
-        if !element("loupe").exists { openFirstPhoto() }
+        if loupeSignal() == nil { openFirstPhoto() }
         pause(1)
     }
 
     func closePanelIfOpen() {
         guard element("panelTitle").exists else { return }
+        if hit("panel.close") == nil { pause(1) }
         if let close = hit("panel.close") {
             close.tap()
             let deadline = Date().addingTimeInterval(5)
@@ -361,14 +372,54 @@ class TourTestCase: LightCraftUITestCase {
         pause(1)
     }
 
-    /// Scrolls the open panel's content up by dragging inside it.
+    /// Scrolls the open panel's content up. iPad: drags the inspector column along its left padding strip (no
+    /// control there, so no slider is nudged); iPhone: drags inside the sheet below its title.
     func scrollPanel() {
+        let inspector = element("inspector")
+        if inspector.exists {
+            let from = inspector.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.8))
+            let to = inspector.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.3))
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+            pause(0.6)
+            return
+        }
         let title = element("panelTitle")
         guard title.exists else { return }
         let from = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: 330))
         let to = from.withOffset(CGVector(dx: 0, dy: -240))
         from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
         pause(0.6)
+    }
+
+    /// iPad stacked inspector: waits for `panel.<id>.section`, then scrolls the inspector (up to `maxScrolls`,
+    /// down as well when it overshot) until the section's header or collapse button can be tapped. Expands a
+    /// collapsed section. Returns a failure cause, or nil when the section is on screen and expanded.
+    func revealSection(_ panel: String, maxScrolls: Int = 8) -> String? {
+        let section = element("panel.\(panel).section")
+        guard section.waitForExistence(timeout: 8) else { return "section-missing" }
+        let candidates = ["panel.\(panel).collapse", "panel.\(panel).header", "panel.\(panel).section"]
+        func visible() -> XCUIElement? { for id in candidates { if let e = hit(id) { return e } }; return nil }
+        var tries = 0
+        while visible() == nil && tries < maxScrolls && !timeUp {
+            let inspector = element("inspector")
+            if inspector.exists { if tries < maxScrolls / 2 + 1 { inspector.swipeUp(velocity: .slow) } else { inspector.swipeDown(velocity: .slow) } }
+            pause(0.5)
+            tries += 1
+        }
+        guard visible() != nil else { return "off-screen" }
+        let collapse = element("panel.\(panel).collapse")
+        if collapse.exists, (collapse.value as? String) == "Collapsed", let c = hit(collapse.identifier) {
+            c.tap()
+            pause(0.8)
+        }
+        return nil
+    }
+
+    /// Collapses a stacked section again (not Edit, which is the default-open one) so later panels get room.
+    func collapseSection(_ panel: String) {
+        guard panel != "edit" else { return }
+        let collapse = element("panel.\(panel).collapse")
+        if collapse.exists, (collapse.value as? String) == "Expanded", let c = hit(collapse.identifier) { c.tap(); pause(0.5) }
     }
 
     // MARK: Undo

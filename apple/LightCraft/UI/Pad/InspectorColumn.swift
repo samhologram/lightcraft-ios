@@ -73,11 +73,22 @@ struct InspectorColumn: View {
                     }
                 }
                 .scrollIndicators(.hidden)
-                .onChange(of: model.panelRevealTick) { _, _ in
-                    guard let target = model.panelRevealTarget else { return }
-                    withAnimation { proxy.scrollTo(target, anchor: .top) }
-                }
+                .onChange(of: model.panelRevealTick) { _, _ in scrollToReveal(proxy) }
+                // The column may be created by the very tap that opens a panel: its tick change then happened before it existed.
+                .onAppear { scrollToReveal(proxy) }
             }
+        }
+    }
+}
+
+extension InspectorColumn {
+    /// Scrolls the revealed panel's section to the top. Waits a beat so the expansion (new body heights) has been laid out.
+    @MainActor fileprivate func scrollToReveal(_ proxy: ScrollViewProxy) {
+        guard let target = model.panelRevealTarget else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard model.panelLayout.visiblePanels.contains(target) else { return }
+            withAnimation(.snappy) { proxy.scrollTo(target, anchor: .top) }
         }
     }
 }
