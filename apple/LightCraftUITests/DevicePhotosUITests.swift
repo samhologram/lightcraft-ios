@@ -1,6 +1,6 @@
 import XCTest
 
-/// Photos browsing and explicit Save Copy to Photos, plus denied / limited
+/// Photos-source app-copy editing and explicit Save Copy to Photos, plus denied / limited
 /// permission states. Needs images in the simulator's Photos library; the runner sets the permission per
 /// method with `simctl privacy` (testDenied* revoke, testLimited* reset, everything else grants).
 @MainActor
@@ -12,6 +12,80 @@ final class DevicePhotosUITests: LightCraftUITestCase {
         firstCell().tap()
         XCTAssertTrue(element("loupe").waitForExistence(timeout: 60), "loupe not shown")
         pause(2)
+    }
+
+    /// Simulator-only synthetic Photos source. No PhotoKit write-back or source deletion.
+    /// Runner must explicitly attest that photo.0 is a disposable, freshly seeded fixture.
+    func testPhotosSourceEditCopyPersistsAndResets() {
+        #if !targetEnvironment(simulator)
+        XCTFail("This story is restricted to a synthetic simulator Photos library")
+        return
+        #endif
+        guard ProcessInfo.processInfo.environment["LC_SYNTHETIC_PHOTOS"] == "1" else {
+            XCTFail("Fixture prerequisite: isolated simulator seeded only with disposable images; set TEST_RUNNER_LC_SYNTHETIC_PHOTOS=1")
+            return
+        }
+        launchPlain() // Never silently substitute engine samples for the Photos source.
+        defer {
+            let evidence = XCTAttachment(string: app.debugDescription)
+            evidence.name = "photos-edit-copy-hierarchy"; evidence.lifetime = .keepAlways; add(evidence)
+            flushNotes()
+        }
+        func awaitState(_ message: String, _ check: @escaping () -> Bool) {
+            let predicate = NSPredicate { _, _ in check() }
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 15), .completed, message)
+        }
+        func exposure() -> Double? {
+            let control = element("control.light.exposure")
+            return storyNumber((control.value as? String) ?? "")
+        }
+        func openFixture() {
+            XCTAssertTrue(firstCell().waitForExistence(timeout: 30), "Fixture: Photos grid must contain the synthetic source")
+            XCTAssertTrue(firstCell().isHittable)
+            firstCell().tap()
+            XCTAssertTrue(element("loupe").waitForExistence(timeout: 60), "Fixture: source must open in the editor")
+            ensureEditPanelOpen()
+            if !element("control.light.exposure").isHittable {
+                XCTAssertTrue(tap("toggleInspector"), "Exposure inspector must be reachable")
+            }
+            awaitState("Exposure must be editable", { self.element("control.light.exposure").isHittable })
+        }
+        func leaveEditor() {
+            if !element("mode.grid").isHittable, element("panel.close").isHittable {
+                XCTAssertTrue(tap("panel.close"))
+            }
+            XCTAssertTrue(tap("mode.grid"), "Leaving the editor must commit the app copy")
+            XCTAssertTrue(firstCell().waitForExistence(timeout: 15))
+        }
+        openFixture()
+        let baseline = exposure()
+        XCTAssertNotNil(baseline, "Exposure must expose a numeric baseline")
+        XCTAssertEqual(baseline, 0, "Fixture must be fresh and have no previous app-copy edits")
+        let recorder = StoryRecorder()
+        XCTAssertTrue(storyEnterValue("control.light.exposure", "1", recorder))
+        awaitState("Exposure edit must change the app copy", { exposure() == 1 })
+        leaveEditor()
+        XCTAssertTrue(element("photo.edited.0").waitForExistence(timeout: 15), "The source tile must report its edited app copy")
+        // A new process must restore persisted edits, not just retain the active editor model.
+        app.terminate()
+        app.launch()
+        openFixture()
+        awaitState("Exposure must restore after leaving and process relaunch", { exposure() == 1 })
+        if !element("menu.more").isHittable, element("panel.close").isHittable {
+            XCTAssertTrue(tap("panel.close"))
+        }
+        XCTAssertTrue(tap("menu.more"))
+        let reset = element("photos.revert") // Stable identifier; current action is Reset Edit Copy.
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        XCTAssertEqual(reset.label, "Reset Edit Copy", "Reset must target the app copy, never the Photos original")
+        reset.tap()
+        leaveEditor()
+        awaitState("Reset must clear the app-copy edited marker", { !self.element("photo.edited.0").exists })
+        app.terminate()
+        app.launch()
+        openFixture()
+        awaitState("Reset copy settings must persist after relaunch", { exposure() == baseline })
+        note("UI verified Photos-source edit, persisted exposure, and copy-only reset. Original bytes, Documents/Edits source+JSON existence, and cache deletion are covered separately by EditCopyStore unit tests; no UI diagnostic exposes these files or Photos bytes.")
     }
 
     func testSaveCopyToPhotos() throws {
