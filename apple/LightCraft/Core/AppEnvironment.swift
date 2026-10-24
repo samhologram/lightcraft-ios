@@ -48,12 +48,44 @@ final class AppEnvironment {
             catalogError = "The photo cache could not be opened: \(error.localizedDescription)"
         }
         map = AssetMap(file: dir.appendingPathComponent("assets.json"))
+        relinkIfMoved(dir: dir)
     }
 
-    /// Where the original of an asset is cached (one folder per asset, the original file name inside).
+    /// The catalog stores absolute paths, and iOS moves the app's data container on every reinstall or
+    /// update: when the container moved since the last launch, point every cached original at its current
+    /// path (off the main thread). Without this, the photo the catalog restores as active (and any photo not
+    /// reopened) fails every pixel-reading command with "No such file or directory".
+    private func relinkIfMoved(dir: URL) {
+        let marker = dir.appendingPathComponent("container-path.txt")
+        let previous = try? String(contentsOf: marker, encoding: .utf8)
+        guard previous != dir.path else { return }
+        var jobs: [(UInt64, String)] = []
+        for (local, id) in map.all {
+            let folder = Self.originalsFolder(for: local)
+            if let file = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles))?.first {
+                jobs.append((id, file.path))
+            }
+        }
+        relinked.formUnion(jobs.map(\.0))
+        let handle = catalog
+        Task.detached(priority: .utility) {
+            for (id, path) in jobs {
+                let json = "{\"id\":\(id),\"path\":\(Self.jsonString(path))}"
+                _ = try? handle.execute(id: "photo.relink", paramsJson: json)
+            }
+            try? handle.persist()
+            try? dir.path.write(to: marker, atomically: true, encoding: .utf8)
+        }
+    }
+
+    nonisolated private static func jsonString(_ s: String) -> String {
+        (try? String(data: JSONEncoder().encode(s), encoding: .utf8)) ?? "\"\""
+    }
+
     /// Engine photos relinked to their cached original's current path in this launch.
     var relinked: Set<UInt64> = []
 
+    /// Where the original of an asset is cached (one folder per asset, the original file name inside).
     static func originalsFolder(for localID: String) -> URL {
         supportDirectory
             .appendingPathComponent("Originals", isDirectory: true)
@@ -78,6 +110,8 @@ final class AssetMap {
     }
 
     func engineID(for localID: String) -> UInt64? { entries[localID] }
+
+    var all: [String: UInt64] { entries }
 
     func localID(for engineID: UInt64) -> String? { entries.first { $0.value == engineID }?.key }
 

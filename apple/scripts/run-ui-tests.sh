@@ -167,6 +167,10 @@ for device in "${DEVICES[@]}"; do        # iPad first, iPhone second
   acquire_lock
   killall Simulator 2>/dev/null || true
   seed "$D"
+  # Keep the app's own log (open failures, memory lines) for every run, from boot to teardown.
+  xcrun simctl spawn "$D" log stream --style compact --level info \
+    --predicate 'subsystem == "ca.hologram.lightcraft"' > "$OUT/$kind-app.log" 2>&1 &
+  APPLOG_PID=$!
   for t in "${ONLY[@]}"; do
     name="$kind-$(echo "$t" | tr '/' '-')"
     rm -rf "$OUT/$name.xcresult" "$OUT/$name"
@@ -192,6 +196,7 @@ for device in "${DEVICES[@]}"; do        # iPad first, iPhone second
     fi
     xcrun xcresulttool export attachments --path "$OUT/$name.xcresult" --output-path "$OUT/$name" >/dev/null 2>&1 || true
   done
+  kill "$APPLOG_PID" 2>/dev/null || true
   # Leave no compiled app behind on the shared simulators.
   xcrun simctl uninstall "$D" "$BUNDLE" 2>/dev/null || true
   xcrun simctl uninstall "$D" "$BUNDLE.uitests.xctrunner" 2>/dev/null || true

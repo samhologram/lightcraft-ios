@@ -97,7 +97,15 @@ final class PanelTourUITests: TourTestCase {
                 if before == after { misses.append("\(tid)(no-effect: value unchanged)") }
             case .type:
                 target.tap()
-                target.typeText("tour\n")
+                // "\n" makes XCUITest tap the on-screen Return key, which is not always hittable (it failed
+                // the tour); commit only when it is, else end editing by tapping a neutral spot.
+                target.typeText("tour")
+                let enter = app.keyboards.buttons.matching(NSPredicate(format: "label ==[c] 'return' OR label ==[c] 'done'")).firstMatch
+                if enter.exists && enter.isHittable {
+                    enter.tap()
+                } else if app.keyboards.count > 0 {
+                    app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap()
+                }
                 details.append("type \(tid)")
             }
             performed += 1

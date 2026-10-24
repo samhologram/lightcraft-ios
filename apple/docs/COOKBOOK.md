@@ -31,8 +31,9 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   never kill a paused (`T`) build, and do non-compile work while paused.
 - Token-heavy work first: CPU is the bottleneck, agents are not. Front-load writing, review swarms, test authoring
   and docs in parallel; batch compiles so each build validates as much new code as possible.
-- Low-token mode (when the user asks, e.g. near a usage limit): no new agents; finish the current file, then run only
-  compiles that are ready, record errors for later, keep turns short and don't poll.
+- Low-token mode (when the user asks, e.g. near a usage limit): Opus orchestrates in short turns and delegates the
+  work to Sonnet (code fixes) and Haiku (search, tests); compile and build tasks come first; record errors and batch
+  fixes, don't poll, don't re-read large logs (grep the error lines).
 
 ## 0b. Product shape (decide before writing UI; ask the user when the category leaves it open)
 - **Data model follows the category, not the template.** A document app (image, vector, layout, PDF) uses
@@ -45,6 +46,17 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
 - Follow Apple's HIG for iPad and iPhone as closely as possible: system components, materials (Liquid Glass),
   navigation, gestures, keyboard and pointer, Pencil, Dynamic Type, accessibility, dark and light. Deviate only where
   the category demands it, and say why in a code comment.
+- Hyper-productive, Apple-clean. Pro speed with system looks, by progressive disclosure, not clutter:
+  - Speed: every frequent action ≤ 1 tap from the canvas; every desktop shortcut works with a hardware keyboard
+    (same keys, listed in the menu bar / ⌘-hold overlay); ⌘K command palette over the whole catalog; long-press /
+    right-click context menus on canvas objects, layers and list rows; drag and drop in and out (files, images,
+    layers, reorder); multi-touch shortcuts (two-finger tap undo, three-finger tap redo, pinch/rotate canvas);
+    Pencil double-tap/squeeze and hover; scrubbable numeric fields with exact entry; customizable toolbar
+    (`toolbar(id:)`); remember last tool, panel layout and recent values; multiple windows / Stage Manager.
+  - Clean: system components, SF Symbols, materials and semantic colours; one primary action visible per area,
+    the rest in menus, panel headers or the palette; density adapts to the window (§4) instead of shrinking text;
+    no custom chrome, no decorative colour, no modal where a popover or inline edit works.
+  - Measure it: the feature pass reports taps-to-do for the top 10 workflows of the category; regressions are bugs.
 - Stay faithful to the desktop app's mental model: same tools, panels, names and menu structure, adapted to touch.
 - Pick a reference app (most popular, best-reviewed iPad/iPhone app in the category; verify by current App Store
   rankings), clean-room: behaviour and look only, never assets or code.
@@ -115,8 +127,16 @@ parallel apps, `main` + `[skip ci]` pushes, upstream sync script, live simulator
   read the desktop panel code for the rule.
 - Every interactive element has a stable accessibility identifier derived from its model id (`tool.<id>`,
   `panel.<id>`, `command.<id>`, `control.<id>`), on every surface that shows it.
-- iPad menu bar mirrors the desktop menu order, generated from the desktop layout; Window and Help after the system
-  groups. Single-key tool shortcuts = zero-size hidden buttons on the editor view.
+- iPad menu bar = merge, not replace: keep the iPadOS system groups (app, File basics, Edit undo/clipboard, Format,
+  View, Window, Help) and insert the desktop's menus and items in the desktop order, generated from the desktop
+  layout, into the matching system groups or as their own top-level menus; Window and Help last. A bare iPadOS
+  default menu bar is a regression. Single-key tool shortcuts = zero-size hidden buttons on the editor view.
+- Panels work like the desktop (Photoshop-style): every desktop panel (adjustments, curves, levels, histogram,
+  properties, layers…) exists and opens from the right-side panel menu and the Window menu; panels can be added,
+  hidden, collapsed and stacked/reordered in the inspector column, and the arrangement persists per app. A panel
+  entry that opens nothing is a bug: tours must open and act on every panel. iPhone shows them as sheets.
+- Panel-owned actions live in their panel's header, as on the desktop (e.g. "add adjustment layer", new layer,
+  mask, delete in the Layers panel), not in the global toolbar.
 - Launch: for `DocumentGroup`, `DocumentGroupLaunchScene` with system background and the app icon in an overlay laid out
   from `titleViewFrame`; for a library app, open straight onto the library.
 - Platform permissions (Photos read/write, add-only) have usage strings; denied and limited states have their own UI.
