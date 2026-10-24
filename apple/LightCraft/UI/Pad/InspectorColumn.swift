@@ -14,6 +14,7 @@ struct InspectorColumn: View {
     var body: some View {
         VStack(spacing: 0) {
             columnHeader
+                .contentShape(Rectangle())
             Divider()
             if model.panelLayout.visiblePanels.isEmpty {
                 ContentUnavailableView {
@@ -56,8 +57,12 @@ struct InspectorColumn: View {
             .accessibilityIdentifier("panel.close")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 2)
-        .frame(minHeight: 48)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        .frame(minHeight: 52)
+        // Keep the header (and the close button) below the navigation bar's hit area.
+        .safeAreaPadding(.top, 4)
+        .zIndex(2)
     }
 
     private var sections: some View {

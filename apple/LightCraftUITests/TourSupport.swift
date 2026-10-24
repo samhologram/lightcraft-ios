@@ -278,13 +278,38 @@ class TourTestCase: LightCraftUITestCase {
     /// For an item living in a header menu (`panel.<id>.find` / `.add` / `.menu`): opens each such menu in turn
     /// and returns the first tappable element with `prefix`. The menu is left open (tapping the item closes it);
     /// when nothing matches, the menu is dismissed and nil returned.
+    /// Menu item labels (SwiftUI `Menu` items on iPad expose no identifier): command id prefix -> labels.
+    static let menuLabels: [String: [String]] = [
+        "command.mask.add.": ["Subject", "Sky", "Background"],
+        "command.spot.findDust": ["Find Dust Spots"],
+        "command.spot.findBlemishes": ["Find Blemishes"],
+        "view.toolOverlay": ["Cycle Tool Overlay"],
+        "view.maskOverlay": ["Show Overlay"],
+        "tool.brush": ["Brush"], "tool.linear": ["Linear Gradient"], "tool.radial": ["Radial Gradient"],
+    ]
+
+    /// A tappable menu item found by identifier, else by label (`menuLabels`).
+    func hitMenuItem(prefix: String) -> XCUIElement? {
+        if let e = hit(prefix: prefix) { return e }
+        for label in Self.menuLabels[prefix] ?? [] {
+            for q in [app.buttons[label], app.menuItems[label]] {
+                let e = q.firstMatch
+                if e.exists, canTap(e) { return e }
+            }
+        }
+        return nil
+    }
+
+    /// For an item living in a header menu (`panel.<id>.find` / `.add` / `.menu`): opens each such menu in turn
+    /// and returns the first tappable element with `prefix` (by identifier, falling back to the menu label). The menu
+    /// is left open (tapping the item closes it); when nothing matches, the menu is dismissed and nil returned.
     func hitInHeaderMenu(panel: String, prefix: String) -> XCUIElement? {
         for suffix in ["find", "add", "menu"] {
             let id = "panel.\(panel).\(suffix)"
             guard let opener = hit(id) else { continue }
             opener.tap()
             pause(0.8)
-            if let e = hit(prefix: prefix) { return e }
+            if let e = hitMenuItem(prefix: prefix) { return e }
             // Dismiss: Escape-equivalent tap on a neutral corner of the window.
             if app.keyboards.count == 0 { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap() }
             pause(0.5)

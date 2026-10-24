@@ -39,7 +39,24 @@ struct InfoPanel: View {
                     row("Edited", photo.edited ? "Yes" : "No")
                 }
                 Section {
-                    DisclosureGroup("All Metadata", isExpanded: $showTags) {
+                    // A plain button row (a DisclosureGroup's own identifier is not exposed on iPad).
+                    Button {
+                        withAnimation { showTags.toggle() }
+                    } label: {
+                        HStack {
+                            Text("All Metadata")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(showTags ? 90 : 0))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityValue(showTags ? "Expanded" : "Collapsed")
+                    .accessibilityIdentifier("info.allMetadata")
+                    if showTags {
                         if tags.isEmpty {
                             Text("No metadata.").foregroundStyle(.secondary)
                         }
@@ -50,7 +67,6 @@ struct InfoPanel: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("info.allMetadata")
                 }
             }
             .listStyle(.insetGrouped)

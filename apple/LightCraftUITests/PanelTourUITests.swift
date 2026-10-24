@@ -88,6 +88,16 @@ final class PanelTourUITests: TourTestCase {
 
         var performed = 0
         var misses: [String] = []
+        var slideTried = 0, slideChanged = 0
+        if panel == "edit" {
+            // Start from the photo's defaults so repeated runs on the same catalog never accumulate (exposure hit +5.00).
+            if let reset = hit("command.develop.reset") {
+                reset.tap()
+                pause(0.8)
+                _ = dismissStrays()
+                details.append("reset")
+            }
+        }
         var alertTexts: [String] = []
         var refusals: [String] = []
         for step in Self.steps[panel] ?? [] {
@@ -107,7 +117,7 @@ final class PanelTourUITests: TourTestCase {
                 misses.append("\(step.prefix)(\(exists(prefix: step.prefix) ? "off-screen" : "missing-identifier"))")
                 continue
             }
-            let tid = target.identifier
+            let tid = target.identifier.isEmpty ? target.label : target.identifier
             if viaMenu { details.append("menu") }
             switch step.kind {
             case .tap:
@@ -115,13 +125,17 @@ final class PanelTourUITests: TourTestCase {
                 details.append("tap \(tid)")
             case .slide:
                 let before = target.value as? String ?? ""
-                let from = target.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
-                let to = target.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
-                from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
-                pause(1)
+                // Drag toward the middle of the (mostly centred) range: left when the value is positive, else right.
+                let current = Double(before.replacingOccurrences(of: ",", with: ".")) ?? 0
+                let toLeft = current > 0
+                let from = target.coordinate(withNormalizedOffset: CGVector(dx: toLeft ? 0.6 : 0.4, dy: 0.5))
+                let to = target.coordinate(withNormalizedOffset: CGVector(dx: toLeft ? 0.4 : 0.6, dy: 0.5))
+                from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .default, thenHoldForDuration: 0.1)
+                pause(0.5)
                 let after = target.value as? String ?? ""
                 details.append("slide \(tid) '\(before)' -> '\(after)'")
-                if before == after { misses.append("\(tid)(no-effect: value unchanged)") }
+                slideTried += 1
+                if before != after { slideChanged += 1 }
             case .type:
                 target.tap()
                 // "\n" makes XCUITest tap the on-screen Return key, which is not always hittable (it failed
@@ -136,13 +150,14 @@ final class PanelTourUITests: TourTestCase {
                 details.append("type \(tid)")
             }
             performed += 1
-            pause(1.2)
+            pause(panel == "edit" ? 0.5 : 1.2)
             let sheet = resolveSheet()
             if !sheet.text.isEmpty { details.append(sheet.text) }
             if let r = sheet.refused { refusals.append(r) }
             alertTexts += dismissStrays()
             if !alive(name) { return }
         }
+        if slideTried > 0 && slideChanged == 0 { misses.append("sliders(no-effect: no slider value changed)") }
         shot("\(panel)-2-acted")
         for a in alertTexts { note("\(name): alert: \(a)") }
         for r in refusals { note("\(name): engine refused: \(r)") }

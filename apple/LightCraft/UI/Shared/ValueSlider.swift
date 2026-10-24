@@ -167,6 +167,7 @@ struct ValueSlider: View {
     private var scrubGesture: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { g in
+                let first = scrub == nil
                 var s = scrub ?? Scrub(raw: shown, lastX: g.startLocation.x, lastTime: g.time)
                 if s.horizontal == nil {
                     s.horizontal = abs(g.translation.width) >= abs(g.translation.height)
@@ -178,7 +179,9 @@ struct ValueSlider: View {
                 guard s.horizontal == true else { scrub = s; return }
                 let dx = g.location.x - s.lastX
                 let dt = max(0.001, g.time.timeIntervalSince(s.lastTime))
-                s.speed = 0.6 * s.speed + 0.4 * Double(abs(dx)) / dt
+                // The first sample spans the 8 pt activation distance with no real elapsed time: its "speed" is
+                // meaningless (it read as thousands of pt/s and jumped the value at full gain), so it counts as slow.
+                if !first { s.speed = 0.6 * s.speed + 0.4 * Double(abs(dx)) / dt }
                 // Slow drags are fine adjustments (15 %), fast ones cover the full range across the row.
                 let gain = min(1, max(0.15, s.speed / 500))
                 let span = range.upperBound - range.lowerBound
