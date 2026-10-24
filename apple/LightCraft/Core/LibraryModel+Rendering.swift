@@ -244,6 +244,7 @@ extension LibraryModel {
             }
         }
         if ProcessInfo.processInfo.arguments.contains("-LightCraftMemLog") {
+            memoryLog.notice("memory log on: every 30 s; resident \(Self.residentBytes() >> 20) MB")
             memoryLogTask = Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(30))
