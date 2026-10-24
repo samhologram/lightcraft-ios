@@ -7,6 +7,51 @@ import UIKit
 @MainActor
 final class UserStoryUITests: LightCraftUITestCase {
 
+    /// Same acceptance on iPad dock and compact phone sheet; setup failures remain explicit.
+    func testToolbarSidebarRestoresSelectedPanel() {
+        continueAfterFailure = false
+        startLibrary()
+        defer {
+            let evidence = XCTAttachment(string: app.debugDescription)
+            evidence.name = "sidebar-toggle-hierarchy"; evidence.lifetime = .keepAlways; add(evidence)
+        }
+        XCTAssertTrue(tap("photo.0"), "Fixture: first demo photo must open")
+        XCTAssertNotNil(waitForAny(["loupe", "toolbar.beforeAfter"], timeout: 30), "Fixture: editor must open")
+        func waitState(_ message: String, _ check: @escaping () -> Bool) {
+            let predicate = NSPredicate { _, _ in check() }
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 8), .completed, message)
+        }
+        func openProfiles() {
+            if isPad {
+                XCTAssertTrue(tap("control.panelMenu"), "Panel menu must be reachable")
+                XCTAssertTrue(tap("control.panelMenu.profiles"), "Profiles must be selectable")
+            } else {
+                XCTAssertTrue(tap("panel.profiles"), "Phone Profiles route must be reachable")
+            }
+        }
+        openProfiles()
+        let content = element("panel.profiles")
+        func shown() -> Bool {
+            if isPad { return content.exists && content.isHittable && element("panelTab.profiles").isHittable }
+            return element("panelTitle").exists && element("panelTitle").label == "Profiles" && element("panel.close").isHittable
+        }
+        waitState("Profiles content must be foreground and reachable", shown)
+        XCTAssertTrue(tap("toggleInspector"), "Toolbar must hide panels")
+        waitState("Hiding must remove the active presentation", { !shown() })
+        XCTAssertTrue(tap("toggleInspector"), "Toolbar must restore panels")
+        waitState("Restoring must preserve selected Profiles", shown)
+        XCTAssertTrue(tap("toggleInspector"))
+        waitState("Panels must hide before explicit reopen", { !shown() })
+        // On compact layout the real panel strip is the panel-opening route.
+        if isPad {
+            // The dock-local Add menu is hidden too; restore via toolbar before exercising its show action.
+            XCTAssertTrue(tap("toggleInspector"))
+        }
+        openProfiles()
+        waitState("Reopening must reveal the selected panel", shown)
+    }
+
+
     /// Launches the demo library and waits for the grid and its first photo.
     private func startLibrary(dark: Bool = false) {
         launchDemo(dark: dark)

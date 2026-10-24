@@ -198,12 +198,11 @@ extension LibraryModel {
     }
 
     /// Registers the new asset with the engine (caching its original) and has the engine read the XMP:
-    /// the sidecar is placed next to the cached original for the duration of `photo.readMetadataFromFile`
-    /// (the cache folder holds exactly one original otherwise). The result is kept in the engine catalog;
-    /// it reaches Photos with the next edit written back from the loupe.
+    /// the sidecar is placed next to the app-owned source copy for `photo.readMetadataFromFile`.
+    /// The result is persisted in LightCraft's edit settings; the Photos asset is unchanged.
     private func applySidecar(_ xmp: URL, toAsset local: String, originalName: String) async throws {
         let id = try await engineID(forAsset: local)
-        let folder = AppEnvironment.originalsFolder(for: local)
+        let folder = AppEnvironment.copyFolder(for: local)
         let stem = (originalName as NSString).deletingPathExtension
         // The engine's naming preference decides which one it reads: IMG_1.xmp or IMG_1.CR3.xmp.
         let copies = [folder.appendingPathComponent(stem + ".xmp"), folder.appendingPathComponent(originalName + ".xmp")]

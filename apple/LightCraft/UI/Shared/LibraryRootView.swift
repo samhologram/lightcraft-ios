@@ -87,18 +87,6 @@ struct LibraryRootView: View {
                     .accessibilityIdentifier("demoReady")
             }
         }
-        .overlay(alignment: .top) {
-            if model.writeBackCount > 0 {
-                Label("Saving to Photos…", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.footnote.weight(.medium))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .glassEffect(.regular, in: Capsule())
-                    .padding(.top, 8)
-                    .allowsHitTesting(false)
-                    .accessibilityIdentifier("photos.saving")
-            }
-        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { model.commitEdits() }
         }

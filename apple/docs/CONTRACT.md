@@ -24,22 +24,21 @@ Upstream files (everything else) are never edited.
 
 ## 2. The data model: the Photos library
 
-The device's Photos library is the user's library (PhotoKit, read/write access). LightCraft has no document type, no
-"New / Open library" and no import step. `LightCraftApp` is a plain `WindowGroup`; every window opens on the Photos grid.
+The device's Photos library is the browse/select source. Editing creates an app-owned image copy under
+`iCloud Drive/LightCraft/Edits` when an entitled iCloud container is available, otherwise
+`On My iPad/LightCraft/Edits` in the app's Documents directory. LightCraft never automatically overwrites the
+Photos asset. `LightCraftApp` is a `WindowGroup`; every window opens on the Photos grid.
 
 **Engine catalog = internal cache.** `AppEnvironment.shared` (one per process, shared by all windows) opens the engine
 catalog at `Application Support/LightCraft/Catalog.lightcraftlibrary` (excluded from backup) with
-`LibraryHandle.open(dir:, seedDemo: false)`. It holds the engine photo (develop settings, history, rating, flag) of
-every Photos asset that was opened. `assets.json` next to it maps `PHAsset.localIdentifier` → engine photo id (`AssetMap`).
-The catalog and the map can be deleted at any time: the Photos library is the source of truth; `-LightCraftResetCache`
-wipes `Application Support/LightCraft` at launch (tests). If the catalog cannot be opened the app falls back to an
-in-memory catalog and shows the error.
+`LibraryHandle.open(dir:, seedDemo: false)`. It holds engine history and an `assets.json` map from
+`PHAsset.localIdentifier` to engine photo id. The copy folder and `Settings.lightcraft.json` sidecar live outside
+that disposable cache; after cache deletion the same source ID reimports its existing app copy and settings.
 
-**Originals are referenced in place, never imported by the user.** The first time an asset is opened, its original (the
-RAW of a RAW+JPEG pair, otherwise the unedited photo) is written with `PHAssetResourceManager` to
-`Application Support/LightCraft/Originals/<sanitized local id>/<original file name>` (network allowed) and registered
-with `library.import {paths, mode:"add"}`: the engine references that file where it is and copies nothing more. The
-cached original is a private cache, not user-visible.
+**Copy creation.** The first open copies the unedited Photos resource (RAW for a RAW+JPEG pair) into a deterministic
+source-ID folder in the app-owned Edits directory, then imports that file into the engine. Existing legacy cached
+originals are promoted into that folder without changing their source. Reopening the same ID uses the same file;
+the engine never points at a Photos resource as a write target.
 
 **Opening** (`LibraryModel.openPhoto(at:)`): commit any pending edits of the previously open photo, resolve or create the
 engine photo for the asset, `select` it, remember `openLocalID` / `openIndex` / `baselineJSON` (the develop JSON at open
@@ -48,22 +47,17 @@ resources: PhotoKit has no RAW smart album), a fixed set of Photos smart albums 
 Panoramas, Live Photos, Portrait, Long Exposure; empty ones hidden) and the user's albums. The fetch is live
 (`PHPhotoLibraryChangeObserver`).
 
-**Write-back keeps edits re-editable and revertable in Photos.** Leaving the loupe (`mode` leaves `.loupe`), or the scene
-leaving `.active`, calls `commitEdits()`: if `developJson` differs from `baselineJSON`, the photo is rendered at full
-resolution (`export_jpeg`, long edge = the photo's, quality 92) and written with `PHContentEditingInput` /
-`PHContentEditingOutput` plus `PHAdjustmentData(formatIdentifier: "ca.hologram.lightcraft", formatVersion: "1", data:
-<full DevelopSettings JSON, UTF-8>)`, via `PHAssetChangeRequest.contentEditingOutput`. The rendered file is JPEG, or HEIC
-when Photos asks for HEIC. iOS asks the person to confirm each modification; declining (`PHPhotosErrorDomain` 3072) is
-silent. Writes are serialized (`writeTask`); `savedCount` / `writeBackCount` expose progress. Other errors → `lastError`
-("Saving to Photos failed: …").
+**Copy persistence.** Each engine edit, undo/redo and completed slider interaction saves re-editable develop JSON to
+`Settings.lightcraft.json` beside the copied source and persists the engine catalog. Leaving the loupe and backgrounding
+retry any pending change. A save failure is shown as `lastError`; the baseline advances only on success. No automatic
+PhotoKit content-editing output or revert request is made.
 
-**Reopening restores settings.** When an asset is first registered, `requestContentEditingInput` is asked with
-`canHandleAdjustmentData` = our format identifier; if the asset carries LightCraft adjustment data its JSON is applied
-with `develop.merge` (history label "Restore LightCraft edits"). Edits by other apps are not read; the original is the
-starting point. Later opens use the cached engine photo, which keeps its own history.
+**Reopening restores settings.** The app copy's sidecar is applied with `develop.merge` after a cache rebuild.
+For prior LightCraft installations only, existing LightCraft PhotoKit adjustment data is read once and migrated into
+the app copy; the Photos asset is not changed. Later opens use the same mapped copy and engine history.
 
-**Revert.** "Revert to Original" calls `PHAssetChangeRequest.revertAssetContentToOriginal()` (Photos' own revert) and
-runs `develop.reset` on the engine photo. Not offered in samples mode.
+**Reset.** "Reset Edit Copy" runs `develop.reset` on the engine copy and updates its sidecar; it does not revert or
+overwrite the Photos source. Not offered in samples mode.
 
 **Permission states** (`PhotosLibrary.status`, `PhotosGridView`), each with its own UI:
 
@@ -76,13 +70,13 @@ runs `develop.reset` on the engine photo. Not offered in samples mode.
 
 **Demo / samples mode.** With `-LightCraftDemo` (`AppSettings.isDemo`), when Photos is denied or empty
 `LibraryModel.useSamples()` swaps the window to `LibraryHandle.inMemoryDemo()` (`samplesMode = true`): the engine's
-procedural sample photos, editable, no write-back, no Revert, `DemoContent.seed` applies a few edits, then `demoReady`.
+procedural sample photos are editable in memory, `DemoContent.seed` applies a few edits, then `demoReady`.
 Otherwise the demo run uses the real Photos library.
 
 **Undo.** The engine owns the history. Each `LibraryScene` passes the scene's `UndoManager` to its `LibraryModel`; after
 every journaled command whose `historyId` changed, an undo action calling `handle.undo()` is registered (redo
 symmetric; `LibraryModel+Undo.swift`). There is no autosave and no document `snapshot`: the engine catalog is persisted
-with `handle.persist()` after registering an asset; edits reach Photos only through write-back above.
+with `handle.persist()` after edits; the copy sidecar is the recovery source if the internal catalog is reset.
 
 **Save a copy / export.** Exports are written to temp files; "Save to Photos" adds them as new assets
 (`saveCopies`, add-only access suffices). The share sheet is the other route out.
@@ -95,13 +89,10 @@ presets / profiles / mask effects, settings not carried over, per-file failures 
 
 ### Divergences / TODO
 
-- Revert is a button in the loupe's "…" overflow menu ("Revert to Original", `photos.revert`), not an item of the
+- Reset Edit Copy is a button in the loupe's "…" overflow menu (`photos.revert`), not an item of the
   generated menu bar's Photo menu.
-- The full flow (open → edit → write-back → reopen → revert, and the denied/limited states) is built but not yet verified
-  on a simulator (`HANDOFF.md` To do 1); `DevicePhotosUITests` still looks for the old import button.
-- Write-back is triggered on leaving the loupe or the scene going inactive, not per edit; a crash while editing may lose
-  the edits since the last write-back.
-- Edits made by another app, and adjustment data of other format identifiers, are ignored on open.
+- The new copy-only flow requires a synthetic unchanged-original and reopen/persistence regression before it is called green.
+- Edits made by another app and adjustment data of other format identifiers are ignored during legacy migration.
 - Only images are listed (no video, no Live Photo motion); no People / Places / Recents-by-date smart albums.
 - Smart Album, Print and Contact Sheet dialogs are not available on iOS yet (README, Known gaps).
 
@@ -235,7 +226,7 @@ checked by `scripts/check-command-ids.sh` against `command_catalog` + `ui_comman
     var mode: Mode                          // .grid / .loupe
     var lastError: String?                  // shown as an alert (full message)
     var isDemoReady: Bool                   // `demoReady` marker: Photos grid ready (or samples seeded)
-    var samplesMode: Bool                   // engine's in-memory demo photos, no Photos write-back
+    var samplesMode: Bool                   // engine's in-memory demo photos, no app copy
     var openLocalID: String?                // PHAsset.localIdentifier of the photo open in the loupe
     var photos: PhotosLibrary { get }       // AppEnvironment.shared.photos
     var lastNotice: String?                 // info alert (preset import summary)
@@ -248,8 +239,8 @@ checked by `scripts/check-command-ids.sh` against `command_catalog` + `ui_comman
     func open(_ id: UInt64)                 // select + mode = .loupe (engine ids; samples mode)
     func openPhoto(at index: Int) async     // Photos grid index: register the asset, select, mode = .loupe
     func bootstrap() async                  // request Photos access, samples fallback in demo mode
-    func commitEdits()                      // write changed settings back to Photos (leaving the loupe)
-    func revertToOriginal()                 // PhotoKit revert + develop.reset
+    func commitEdits()                      // persist changed settings beside the app-owned copy
+    func resetCopyToSource()                // develop.reset on the copy only
     func setDevelop(_ control: String, _ value: Double)  // develop.set {values:{control:value}} during a drag
     func beginDrag(_ label: String); func endDrag()
     func refresh()
@@ -355,7 +346,10 @@ engine's RAW decoder is kept for originals (non-destructive develop re-reads the
   “Hide Panels” or “Show Panels” and toggles the trailing dock or panel sheet. Hiding preserves the
   active panel and persisted dock groups, order, and collapsed state. Showing scrolls the selected
   tab group back into view without changing that state; Window/menu panel commands still open the
-  dock and reveal their requested tab. Full-screen mode retains its dedicated exit control.
+  dock and reveal their requested tab. It is the rightmost toolbar action; the iPad retains the native
+  NavigationSplitView toggle for its Album sidebar and the Library grid/editor navigation button, with
+  no duplicate custom sidebar toggle. Full-screen mode retains
+  its dedicated exit control.
 - Accessibility: `control.panelMenu` is the dock add menu; `panelTab.<id>` identifies each persistent tab;
   `panel.<id>` identifies the selected panel body; `panelGroup.<index>` and `panelCollapse.<index>` identify group
   controls. Keep command ids on panel actions and menu entries. Tours must open every panel through an actual UI

@@ -31,10 +31,10 @@ private final class PhotoChangeForwarder: NSObject, PHPhotoLibraryChangeObserver
 }
 
 /// The device's Photos library (PhotoKit) as LightCraft's library: authorization, a live fetch of the
-/// images of the current source, the source list, thumbnails, originals, and writing edits back.
+/// images of the current source, the source list, thumbnails and read-only originals.
 @MainActor @Observable
 final class PhotosLibrary {
-    /// Format identifier of the adjustment data LightCraft stores with an edited asset.
+    /// Format identifier of adjustment data written by older LightCraft versions, read for migration only.
     nonisolated static let formatIdentifier = "ca.hologram.lightcraft"
 
     private(set) var status: PHAuthorizationStatus
@@ -102,7 +102,7 @@ final class PhotosLibrary {
         reload()
     }
 
-    /// Large libraries change constantly (iCloud sync, our own write-backs): coalesce bursts of change
+    /// Large libraries change constantly (iCloud sync and other apps): coalesce bursts of change
     /// notifications into one reload instead of one full reload per notification.
     private func scheduleReload() {
         changeTask?.cancel()
@@ -505,53 +505,12 @@ final class PhotosLibrary {
         return result.value
     }
 
-    /// The develop settings (JSON) LightCraft stored with the asset when it edited it; nil for an untouched
-    /// photo or an edit made by another app.
+    /// Read old LightCraft adjustment data once when promoting a legacy photo to an app-owned copy.
     func adjustmentJSON(localID: String) async -> String? {
         guard let asset = Self.asset(withIdentifier: localID), asset.hasAdjustments,
               let input = await Self.editingInput(for: asset),
               let adj = input.adjustmentData, adj.formatIdentifier == Self.formatIdentifier else { return nil }
         return String(data: adj.data, encoding: .utf8)
-    }
-
-    /// Writes a rendered JPEG and the settings back into the asset (iOS asks the person to confirm).
-    func writeBack(localID: String, jpeg: Data, settingsJSON: String) async throws {
-        guard let asset = Self.asset(withIdentifier: localID) else { throw Self.error("The photo is no longer in your Photos library.") }
-        guard let input = await Self.editingInput(for: asset) else { throw Self.error("Photos could not open the photo for editing.") }
-        let output = PHContentEditingOutput(contentEditingInput: input)
-        output.adjustmentData = PHAdjustmentData(formatIdentifier: Self.formatIdentifier, formatVersion: "1", data: Data(settingsJSON.utf8))
-        try Self.writeRendered(jpeg, to: output.renderedContentURL, type: output.defaultRenderedContentType)
-        try await Self.apply(Unchecked(value: asset), Unchecked(value: output))
-    }
-
-    nonisolated private static func apply(_ asset: Unchecked<PHAsset>, _ output: Unchecked<PHContentEditingOutput>) async throws {
-        try await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest(for: asset.value).contentEditingOutput = output.value
-        }
-    }
-
-    /// JPEG as is; transcoded when Photos expects another type (HEIC).
-    nonisolated private static func writeRendered(_ jpeg: Data, to url: URL, type: UTType?) throws {
-        guard let type, type != .jpeg, type.conforms(to: .heic),
-              let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
-              let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.heic.identifier as CFString, 1, nil) else {
-            try jpeg.write(to: url, options: .atomic)
-            return
-        }
-        CGImageDestinationAddImageFromSource(dest, source, 0, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { throw error("The edited photo could not be encoded.") }
-    }
-
-    /// Photos' own "Revert to Original".
-    func revertToOriginal(localID: String) async throws {
-        guard let asset = Self.asset(withIdentifier: localID) else { throw Self.error("The photo is no longer in your Photos library.") }
-        try await Self.revert(Unchecked(value: asset))
-    }
-
-    nonisolated private static func revert(_ asset: Unchecked<PHAsset>) async throws {
-        try await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest(for: asset.value).revertAssetContentToOriginal()
-        }
     }
 
     // MARK: Save a copy

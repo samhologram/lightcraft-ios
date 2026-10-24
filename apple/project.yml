@@ -55,6 +55,7 @@ targets:
           UIImageName: LaunchIcon
           UIImageRespectsSafeAreaInsets: false
         UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         UIRequiresFullScreen: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
@@ -68,8 +69,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSPhotoLibraryUsageDescription: LightCraft imports your photos and their originals, including RAW files, to edit them non-destructively.
-        NSPhotoLibraryAddUsageDescription: LightCraft saves exported photos to your Photos library.
+        NSPhotoLibraryUsageDescription: LightCraft reads photos, including RAW files, to create editable copies in its own folder. Your Photos originals are not changed.
+        NSPhotoLibraryAddUsageDescription: LightCraft adds new photos when you explicitly import media or choose Save to Photos.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Lightroom Preset
             CFBundleTypeRole: Viewer

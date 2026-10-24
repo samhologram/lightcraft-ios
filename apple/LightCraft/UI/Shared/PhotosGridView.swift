@@ -2,7 +2,7 @@ import SwiftUI
 import Photos
 
 /// The Photos library grid: thumbnails of the current source (PhotoKit). Tapping a photo opens it in the
-/// loupe (its original is registered with the engine the first time).
+/// loupe (an app-owned copy is registered with the engine the first time).
 struct PhotosGridView: View {
     let model: LibraryModel
 
@@ -17,7 +17,7 @@ struct PhotosGridView: View {
                 ContentUnavailableView {
                     Label("Photos Access Needed", systemImage: "photo.badge.exclamationmark")
                 } description: {
-                    Text("LightCraft edits the photos in your Photos library. Allow access in Settings to see them here.")
+                    Text("LightCraft browses your Photos library and saves edits in its own folder. Allow access in Settings to see your photos here.")
                 } actions: {
                     Button("Open Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
@@ -108,6 +108,9 @@ private struct PhotosCell: View {
 
     var body: some View {
         let asset = photos.asset(at: index)
+        let mappedID = asset.flatMap { AppEnvironment.shared.map.engineID(for: $0.localIdentifier) }
+        let editedCopy = asset.map { model.hasEditedCopy(for: $0.localIdentifier) } ?? false
+        let editVersion = mappedID.map { model.thumbnailVersion($0) } ?? 0
         Button {
             Task { await model.openPhoto(at: index) }
         } label: {
@@ -129,8 +132,14 @@ private struct PhotosCell: View {
         .contextMenu { photoMenu(asset) }
         .accessibilityLabel("Photo \(index + 1)")
         .accessibilityIdentifier("photo.\(index)")
-        .task(id: "\(Int(edge * displayScale))-\(photos.revision)-\(photos.currentID)") {
+        .task(id: "\(Int(edge * displayScale))-\(photos.revision)-\(photos.currentID)-\(editedCopy)-\(editVersion)") {
             photos.noteVisible(index)
+            if editedCopy, let mappedID,
+               let rendered = await model.thumbnail(mappedID, edge: Int(max(64, edge * displayScale))) {
+                guard !Task.isCancelled else { return }
+                image = UIImage(cgImage: rendered)
+                return
+            }
             let result = await photos.thumbnail(at: index, edge: max(64, edge * displayScale))
             guard !Task.isCancelled else { return }
             image = result
@@ -139,9 +148,7 @@ private struct PhotosCell: View {
 
     // MARK: Context menu
 
-    /// Runs an engine command on this photo: registers its original with the engine first (cached after the
-    /// first time), selects it, then runs `command`. `openFirst` opens it in the loupe so the result is written
-    /// back to Photos when the loupe closes (anything that changes the edit).
+    /// Runs an engine command on this photo's app-owned copy, creating it first if needed.
     private func act(_ command: String, _ params: [String: Any] = [:], openFirst: Bool = false) {
         guard let local = photos.localIdentifier(at: index) else { return }
         let model = model
@@ -207,12 +214,13 @@ private struct PhotosCell: View {
 
     @ViewBuilder
     private func badges(_ asset: PHAsset?) -> some View {
-        if let asset, asset.hasAdjustments || asset.isFavorite {
+        let edited = asset.map { model.hasEditedCopy(for: $0.localIdentifier) } ?? false
+        if let asset, edited || asset.isFavorite {
             // Kept: legibility scrim over photo content.
             HStack(spacing: 4) {
                 if asset.isFavorite { Image(systemName: "heart.fill").foregroundStyle(.white) }
                 Spacer(minLength: 0)
-                if asset.hasAdjustments {
+                if edited {
                     Image(systemName: "slider.horizontal.3")
                         .foregroundStyle(.white)
                         .accessibilityIdentifier("photo.edited.\(index)")

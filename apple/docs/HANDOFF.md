@@ -18,21 +18,23 @@ State on 2026-10-24, for whoever (person or agent, any platform) continues. Read
 | **Round 7** | **In progress** (spec: `CONTRACT.md` §6): PhotoCraft-style persistent iPad dock tabs, pinned Add menu, panel-owned header actions, merged iPad menu bar, productivity (shortcuts, palette, gestures, scrubbable sliders), media import into Photos, native decoders for thumbnails/previews. Dock implementation builds; final simulator validation remains. |
 | Coverage tours | Written (`LightCraftUITests/*Tour*.swift`); summaries in `docs/tour-summaries/`. |
 | Panels toolbar | `sidebar.trailing` Show/Hide Panels button (`toggleInspector`) added to the iPad and iPhone loupe toolbar. It preserves the dock layout and active panel and reveals the selected group on reopen. Generic simulator build passes; runtime UX check pending. |
-| Physical iPad | The current panels-toolbar Swift build was signed, installed in place and launched on Sam's iPad on 2026-10-24 (observed PID 2748). The retained bundle is `build/device-app/LightCraft.app`, with manifest and re-sign helper in ignored `build/device-sign/`. This verifies installation and launch, not the pending toolbar UX story. |
+| Physical iPad | The current copy-only Swift build was signed, installed in place and launched on Sam's iPad on 2026-10-24 (observed PID 2920). The retained bundle is `build/device-app/LightCraft.app`, with manifest and re-sign helper in ignored `build/device-sign/`. This verifies installation and launch, not the pending toolbar UX story. |
+| App-owned edit copies | New copy-only source builds: source-ID folder in iCloud Drive when entitled or app Documents fallback, copied source image plus re-editable JSON sidecar, cache-reset restore, and no PhotoKit content-editing/revert output. Luna ran the prior 5 Swift units green, including synthetic original-unchanged/cache-reset restore; a newly added Documents-path assertion is compiled but awaits execution. Live source-to-copy UI flow remains to validate on a synthetic simulator Photos fixture. |
 
 ## To do, in order
 
 1. **Finish and verify round 7** (see `CONTRACT.md` §6). Bridge cargo test (20/20), clippy, command-ID and tool-coverage gates, generated feature-coverage check, and simulator-target build pass. iPad Stories A/C/D/E/H/I passed on the dock bundle; F then passed on the corrected Masking selector with an actual Subject mask and exposure 0→1. The moved-original Swift regression passed. The latest portrait panel tour reached only Edit, Profiles and Crop (3/11): the anchored Remove Find popover closed after Find Dust, but the tour reopened it only to inspect disabled Find Blemishes and tapped the status bar when dismissing, blocking the following seven tabs. A test-only change now inspects disabled Blemishes during the first Find opening, then dispatches Dust; its focused Remove/Masking simulator rerun is pending. Automatic blemishes remain unavailable and manual spot placement unimplemented, separate from panel navigation. The new toolbar toggle also needs Luna's runtime UX check. Read actual `build/results/*-notes` and tour summaries before declaring a pass.
-2. **iPhone suites**: `apple/scripts/run-ui-tests.sh`, after the full iPad round-7 suite is green, then iPhone portrait/narrow. Read every
+2. **Verify the copy-only storage correction**: the synthetic `BridgeSmokeTests.editCopyKeepsSourceBytesAndRestoresSettingsAfterCacheReset` passed (whole `LightCraftTests` target 5/5; `build/results/luna-light-copy-unit.log`). Next run a focused app-copy open/edit/reopen/reset story with a synthetic Photos fixture and verify original bytes/asset content remain unchanged. The obsolete `DevicePhotosUITests` write-back/revert method was removed; it asserted the superseded behavior. No personal Photos edits or resets on the physical iPad.
+3. **iPhone suites**: `apple/scripts/run-ui-tests.sh`, after the full iPad round-7 suite is green, then iPhone portrait/narrow. Read every
    `-notes` and `-tour-summary`; every "not reached" item is a bug. Known open ones:
    - Remove supports automatic Find Dust. Find Blemishes needs the separately accepted/downloaded YuNet face model;
      the iOS canvas has no manual on-photo spot placement tool yet. Do not count a disabled model action as exercised.
    - `tool.guidedUpright`: overlay of its own (identifiers in CONTRACT §5); verify.
    - Not yet on iOS: `dialog.smartAlbum`, `dialog.newSmartAlbum`, `dialog.print`, `dialog.contactSheet`.
    - iPhone accessibility labels of panel titles read the SF Symbol name.
-3. **Haiku feature pass** (COOKBOOK §7, last bullet): one agent per area, iPad then iPhone; fills the "Measured"
+4. **Feature pass** (COOKBOOK §7, last bullet): iPad then iPhone; fills the "Measured"
    column of the README's top-10 taps table; Sonnet fixes; rerun affected suites.
-4. **Physical device follow-up**: the authorized in-place installation, including the newer panels toolbar, completed on 2026-10-24 without Photos fixtures or app uninstall. Check memory over a long session there.
+5. **Physical device follow-up**: the latest copy-only source was signed and installed in place without Photos fixtures or app uninstall. Check memory over a long session there.
 
 ## Commands
 

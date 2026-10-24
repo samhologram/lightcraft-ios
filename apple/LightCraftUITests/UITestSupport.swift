@@ -105,22 +105,6 @@ class LightCraftUITestCase: XCTestCase {
         pause(3)
     }
 
-    /// Taps the system "Modify" confirmation iOS shows when an app changes a photo. Returns whether it showed.
-    @discardableResult
-    func confirmPhotoModification(timeout: TimeInterval = 20) -> Bool {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for host in [springboard, app!] {
-            let button = host.alerts.buttons["Modify"].firstMatch
-            if button.waitForExistence(timeout: host === springboard ? timeout : 2) {
-                shot("system-modify-alert")
-                button.tap()
-                return true
-            }
-        }
-        note("no system Modify confirmation appeared")
-        return false
-    }
-
     func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

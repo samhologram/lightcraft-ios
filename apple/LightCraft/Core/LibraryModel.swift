@@ -68,10 +68,8 @@ final class LibraryModel {
     var isOpening = false
     /// Develop settings JSON of the open photo when it was opened or last written back.
     @ObservationIgnored var baselineJSON: String?
-    @ObservationIgnored var writeTask: Task<Void, Never>?
-    /// Write-backs to Photos in flight, and how many finished (for the saving indicator and tests).
-    var writeBackCount = 0
-    var savedCount = 0
+    /// Invalidates copy-edited badges after a sidecar save or reset.
+    var copyEditTick = 0
     var showExport = false
     /// HDR editing is on for the active photo (`develop.hdr`): the HDR-only controls show.
     var hdrEnabled = false
@@ -238,17 +236,24 @@ final class LibraryModel {
         refresh()
         guard !CommandCatalog.shared.isQuery(id) else { return }
         invalidateThumbnails(params: params)
-        if state.historyId != historyBefore { registerUndoStep(label: state.undoLabel) }
+        if state.historyId != historyBefore {
+            for photoID in affectedIDs(params: params) { _ = persistCopySettings(for: photoID) }
+            registerUndoStep(label: state.undoLabel)
+        }
     }
 
     /// Photos a command may have changed: the active one, the selection and explicit `ids`.
     private func invalidateThumbnails(params: [String: Any]) {
+        for id in affectedIDs(params: params) { thumbnailVersions[id, default: 0] += 1 }
+    }
+
+    private func affectedIDs(params: [String: Any]) -> Set<UInt64> {
         var ids = Set(state.selected)
         if let active = state.active { ids.insert(active) }
         if let explicit = params["ids"] as? [Any] {
             for value in explicit { if let n = (value as? NSNumber)?.uint64Value { ids.insert(n) } }
         }
-        for id in ids { thumbnailVersions[id, default: 0] += 1 }
+        return ids
     }
 
     func select(_ id: UInt64) {
@@ -302,7 +307,10 @@ final class LibraryModel {
         }
         refresh()
         if let active = state.active { thumbnailVersions[active, default: 0] += 1 }
-        if state.historyId != dragHistoryStart { registerUndoStep(label: state.undoLabel) }
+        if state.historyId != dragHistoryStart {
+            if let active = state.active { _ = persistCopySettings(for: active) }
+            registerUndoStep(label: state.undoLabel)
+        }
     }
 
     // MARK: JSON

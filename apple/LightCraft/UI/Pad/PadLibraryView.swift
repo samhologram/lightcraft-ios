@@ -24,7 +24,6 @@ struct PadLibraryView: View {
             .navigationTitle(model.mode == .loupe ? (model.activePhoto?.fileName ?? "Photo") : SourceMenuContent.currentTitle(model: model))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .toolbar(removing: .sidebarToggle)
             .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
@@ -130,14 +129,6 @@ struct PadLibraryView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button {
-                withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
-            } label: {
-                Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.leading")
-            }
-            .accessibilityIdentifier("control.sidebar")
-        }
-        ToolbarItem(placement: .topBarLeading) {
             if model.mode == .loupe {
                 Button {
                     model.mode = .grid
@@ -155,7 +146,7 @@ struct PadLibraryView: View {
                 .accessibilityIdentifier("mode.loupe")
             }
         }
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
             if model.mode == .grid && model.samplesMode {
                 Button {
                     selecting.toggle()
@@ -166,11 +157,11 @@ struct PadLibraryView: View {
             }
             if model.mode == .grid && !model.samplesMode { MediaImportButton(model: model) }
             if model.mode == .loupe { FullScreenButton(model: model) }
-            if model.mode == .loupe { PanelVisibilityButton(model: model) }
             UndoRedoButtons(model: model)
             ShareButton(model: model)
             PaletteButton(model: model)
             OverflowMenu(model: model)
+            if model.mode == .loupe { PanelVisibilityButton(model: model) }
         }
     }
 }

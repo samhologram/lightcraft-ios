@@ -83,9 +83,9 @@ struct OverflowMenu: View {
         Menu {
             if canRevert {
                 Button(role: .destructive) {
-                    model.revertToOriginal()
+                    model.resetCopyToSource()
                 } label: {
-                    Label("Revert to Original", systemImage: "arrow.uturn.backward.circle")
+                    Label("Reset Edit Copy", systemImage: "arrow.uturn.backward.circle")
                 }
                 .accessibilityIdentifier("photos.revert")
             }

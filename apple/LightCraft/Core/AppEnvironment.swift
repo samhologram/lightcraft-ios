@@ -1,12 +1,12 @@
 import Foundation
 @preconcurrency import LightCraftKit
 
-/// What every window shares: the internal engine catalog, the Photos library and the map between them.
+/// What every window shares: the internal engine catalog, the Photos browser and app-owned edit copies.
 ///
 /// The Photos library is the library the person sees. The engine catalog
 /// (`Application Support/LightCraft/Catalog.lightcraftlibrary`) is an internal cache: it holds the engine
-/// photo (settings, history, rating, flag...) of every Photos asset that was opened, referencing the cached
-/// original in place.
+/// photo (settings, history, rating, flag...) of every Photos asset that was opened. Its source path is
+/// an app-owned copy, never a writable Photos resource.
 @MainActor
 final class AppEnvironment {
     static let shared = AppEnvironment()
@@ -18,7 +18,6 @@ final class AppEnvironment {
     private(set) var relinkTask: Task<RelinkResult, Never>?
 
     struct RelinkResult: Sendable {
-        let ids: Set<UInt64>
         let failures: [String]
     }
 
@@ -29,6 +28,22 @@ final class AppEnvironment {
         return base.appendingPathComponent("LightCraft", isDirectory: true)
     }()
 
+    /// User-visible edit copies. A Personal Team has no iCloud container, so Files > On My iPad is used.
+    static let editCopiesRoot: URL = {
+        let fm = FileManager.default
+        let documents = fm.url(forUbiquityContainerIdentifier: nil)?.appendingPathComponent("Documents", isDirectory: true)
+            ?? fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documents.appendingPathComponent("Edits", isDirectory: true)
+    }()
+
+    static func copyFolder(for localID: String) -> URL {
+        EditCopyStore.folder(for: localID, under: editCopiesRoot)
+    }
+
+    static func copyFile(for localID: String) -> URL? {
+        EditCopyStore.sourceFile(in: copyFolder(for: localID))
+    }
+
     private init() {
         AppSettings.registerDefaults()
         let dir = Self.supportDirectory
@@ -37,6 +52,7 @@ final class AppEnvironment {
             try? FileManager.default.removeItem(at: dir)
         }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: Self.editCopiesRoot, withIntermediateDirectories: true)
         var excluded = URLResourceValues()
         excluded.isExcludedFromBackup = true
         var mutable = dir
@@ -64,25 +80,23 @@ final class AppEnvironment {
     private func relinkIfMoved(dir: URL) {
         // Version the marker: older releases wrote it even when relink failed, leaving a stale catalog
         // falsely recorded as healthy. A one-time pass repairs those existing installations.
-        let marker = dir.appendingPathComponent("container-path-v2.txt")
+        let marker = dir.appendingPathComponent("container-path-v3.txt")
         let previous = try? String(contentsOf: marker, encoding: .utf8)
-        guard previous != dir.path else { return }
+        let currentPaths = dir.path + "\n" + Self.editCopiesRoot.path
+        guard previous != currentPaths else { return }
         var jobs: [(UInt64, String)] = []
         for (local, id) in map.all {
-            let folder = Self.originalsFolder(for: local)
-            if let file = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles))?.first {
+            if let file = Self.copyFile(for: local) ?? Self.legacyOriginal(for: local) {
                 jobs.append((id, file.path))
             }
         }
         let handle = catalog
         relinkTask = Task.detached(priority: .utility) {
-            var ids = Set<UInt64>()
             var failures: [String] = []
             for (id, path) in jobs {
                 let json = "{\"id\":\(id),\"path\":\(Self.jsonString(path))}"
                 do {
                     _ = try handle.execute(id: "photo.relink", paramsJson: json)
-                    ids.insert(id)
                 } catch {
                     failures.append("Photo \(id): \(error.localizedDescription)")
                 }
@@ -90,12 +104,12 @@ final class AppEnvironment {
             if failures.isEmpty {
                 do {
                     try handle.persist()
-                    try dir.path.write(to: marker, atomically: true, encoding: .utf8)
+                    try currentPaths.write(to: marker, atomically: true, encoding: .utf8)
                 } catch {
                     failures.append("Saving the repaired photo cache: \(error.localizedDescription)")
                 }
             }
-            return RelinkResult(ids: ids, failures: failures)
+            return RelinkResult(failures: failures)
         }
     }
 
@@ -104,7 +118,6 @@ final class AppEnvironment {
     func finishInitialRelink() async -> [String] {
         guard let relinkTask else { return [] }
         let result = await relinkTask.value
-        relinked.formUnion(result.ids)
         self.relinkTask = nil
         return result.failures
     }
@@ -113,14 +126,15 @@ final class AppEnvironment {
         (try? String(data: JSONEncoder().encode(s), encoding: .utf8)) ?? "\"\""
     }
 
-    /// Engine photos relinked to their cached original's current path in this launch.
-    var relinked: Set<UInt64> = []
-
     /// Where the original of an asset is cached (one folder per asset, the original file name inside).
     static func originalsFolder(for localID: String) -> URL {
         supportDirectory
             .appendingPathComponent("Originals", isDirectory: true)
             .appendingPathComponent(PhotosLibrary.sanitize(localID), isDirectory: true)
+    }
+
+    static func legacyOriginal(for localID: String) -> URL? {
+        EditCopyStore.sourceFile(in: originalsFolder(for: localID))
     }
 }
 
@@ -151,8 +165,4 @@ final class AssetMap {
         if let data = try? JSONEncoder().encode(entries) { try? data.write(to: file, options: .atomic) }
     }
 
-    func remove(_ localID: String) {
-        entries[localID] = nil
-        if let data = try? JSONEncoder().encode(entries) { try? data.write(to: file, options: .atomic) }
-    }
 }

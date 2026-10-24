@@ -1,7 +1,6 @@
 import XCTest
 
-/// The Photos library as LightCraft's library (PhotoKit): grid, sources, editing with write-back to the
-/// asset, restore from the stored adjustment data, revert, Save Copy to Photos, and the denied / limited
+/// Photos browsing and explicit Save Copy to Photos, plus denied / limited
 /// permission states. Needs images in the simulator's Photos library; the runner sets the permission per
 /// method with `simctl privacy` (testDenied* revoke, testLimited* reset, everything else grants).
 @MainActor
@@ -13,91 +12,6 @@ final class DevicePhotosUITests: LightCraftUITestCase {
         firstCell().tap()
         XCTAssertTrue(element("loupe").waitForExistence(timeout: 60), "loupe not shown")
         pause(2)
-    }
-
-    private func exposureElement() -> XCUIElement {
-        ensureEditPanelOpen()
-        let e = element("control.light.exposure")
-        _ = e.waitForExistence(timeout: 15)
-        return e
-    }
-
-    private func backToGrid() {
-        if !tap("mode.grid") { app.navigationBars.buttons.firstMatch.tap() }
-        pause(2)
-    }
-
-    /// Reverts the open photo through the Photo menu and confirms iOS's prompt.
-    private func revertOpenPhoto() {
-        XCTAssertTrue(tap("menu.more"))
-        pause(1)
-        shot("revert-menu")
-        XCTAssertTrue(tap("photos.revert"), "no Revert to Original item")
-        confirmPhotoModification()
-        pause(3)
-    }
-
-    func testEditWritesBackRestoresAndReverts() throws {
-        launchDemo(dark: false, extraArguments: ["-LightCraftResetCache"])
-        defer { flushNotes() }
-        openNewDemoLibrary()
-        shot("01-grid")
-        note("grid count: \(element("grid.count").exists ? element("grid.count").label : "n/a (iPhone)")")
-        if isPad { for s in ["album.favorites", "album.raw", "album.all"] { note("\(s): \(element(s).exists)") } }
-        if element("photo.edited.0").exists {
-            note("photo.0 was edited by an earlier run: reverting it first")
-            openFirstPhoto()
-            revertOpenPhoto()
-            backToGrid()
-            pause(3)
-            XCTAssertFalse(element("photo.edited.0").exists, "could not revert the leftover edit")
-            app.terminate()
-            launchDemo(dark: false, extraArguments: ["-LightCraftResetCache"])
-            openNewDemoLibrary()
-        }
-
-        // Edit: exposure.
-        openFirstPhoto()
-        let exposure = exposureElement()
-        let before = exposure.value as? String ?? "?"
-        exposure.swipeRight()
-        pause(3)
-        let edited = exposure.value as? String ?? "?"
-        note("exposure before: \(before) edited: \(edited)")
-        shot("02-edited")
-        XCTAssertNotEqual(before, edited, "the slider did not move")
-
-        // Leaving the loupe writes the edit back into the asset (iOS asks to confirm).
-        if !isPad { app.swipeDown() }
-        backToGrid()
-        confirmPhotoModification()
-        let saving = element("photos.saving")
-        if saving.exists { waitForGone("photos.saving", timeout: 60) }
-        pause(3)
-        shot("03-after-save")
-        XCTAssertTrue(element("photo.edited.0").waitForExistence(timeout: 20), "the asset in Photos has no adjustments after saving")
-
-        // Fresh start (empty cache, as after a reinstall): the settings come back from the adjustment data.
-        app.terminate()
-        launchDemo(dark: false, extraArguments: ["-LightCraftResetCache"])
-        openNewDemoLibrary()
-        openFirstPhoto()
-        let restored = exposureElement().value as? String ?? "?"
-        note("exposure restored: \(restored)")
-        shot("04-restored")
-        XCTAssertEqual(restored, edited, "the edit was not restored from the adjustment data")
-
-        // Revert to Original.
-        revertOpenPhoto()
-        shot("05-reverted")
-        pause(2)
-        let afterRevert = exposureElement().value as? String ?? "?"
-        note("exposure after revert: \(afterRevert)")
-        XCTAssertEqual(afterRevert, before, "exposure is not back to default after Revert to Original")
-        backToGrid()
-        waitForGone("photo.edited.0", timeout: 30)
-        shot("06-grid-reverted")
-        XCTAssertFalse(element("photo.edited.0").exists, "the asset still has adjustments after reverting")
     }
 
     func testSaveCopyToPhotos() throws {

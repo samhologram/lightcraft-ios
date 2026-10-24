@@ -15,20 +15,19 @@ Store; the desktop LightCraft already mirrors the non-Classic Lightroom layout) 
 editor** for library integration. Behaviour and look only, clean-room: no Adobe assets, icons or code; icons are SF
 Symbols.
 
-**The library is the Photos library.** There is no LightCraft library file and no import step: the grid shows the
-photos, albums and smart albums of the device's Photos library (PhotoKit). Opening a photo edits it in place; the engine
-keeps a private cache of opened photos (Application Support) that the user never sees. Details: `docs/CONTRACT.md` §2.
+**Browse Photos, edit a LightCraft copy.** The grid shows the device's Photos library, albums and smart albums.
+Opening a photo creates or reuses an app-owned copy in LightCraft's iCloud Drive folder when available, or On My iPad
+otherwise. Editable settings live beside it; the Photos source is never overwritten by an edit. The engine's internal
+catalog is only a cache. Details: `docs/CONTRACT.md` §2.
 
 Conventions taken from the references:
 
 1. **Two places: the Photos grid and the loupe.** A grid of the photos of the chosen source (All Photos, Favorites,
    RAW, Photos' smart albums, your albums) with a source list in a sidebar; tapping a photo opens it full-bleed for
    editing; Back returns to the grid.
-2. **Edits are written back to Photos when you leave the loupe** (or the app goes to the background), as Photos'
-   own editor does: the photo in Photos shows the edit, iOS asks you to confirm the change, and the edit stays
-   re-editable (LightCraft stores its settings with the photo, `ca.hologram.lightcraft`) and revertable in Photos.
-   Reopening the photo in LightCraft restores the sliders.
-3. **Revert**: "Revert to Original" in the loupe's "…" menu returns the photo to its original, like Photos' Revert.
+2. **Edits save to the app-owned copy** as re-editable settings. Reopening the same Photos source reuses that copy and
+   restores the sliders, even if the internal engine cache is rebuilt. Explicit Save to Photos creates a new asset.
+3. **Reset Edit Copy** in the loupe's "…" menu clears edits on the copy; the Photos source is untouched.
 4. **Permissions have their own screens**: asking for access, denied (Open Settings), limited (the grid shows the
    selected photos with a "Select More Photos" banner), full.
 5. **iPad: persistent tabbed panel dock beside the photo** (Edit, Crop, Remove, Masking, Red Eye, Presets, Versions,
@@ -41,7 +40,7 @@ Conventions taken from the references:
 8. **Press and hold the photo to see the original** (Before); release returns to the edit.
 9. **Pinch to zoom, double-tap toggles fit / 100 %**, one-finger pan when zoomed.
 10. **Top bar**: back to grid, undo / redo, share (export; Save to Photos adds a copy), and a "…" overflow menu with
-    Revert and the full Photo menu.
+    Reset Edit Copy and the full Photo menu.
 11a. **Full-screen canvas**: the loupe's Full Screen button (or View > Enter Full Screen Canvas, ⌃⌘F) hides every panel, bar and strip so only the photo remains; one floating glass button (or Esc) returns to the standard layout.
 11. **Filmstrip** under the loupe on iPad to move between photos; swipe left/right on iPhone.
 12. **Rating and flag** in the loupe's bottom bar and in each grid cell's context menu.
@@ -87,7 +86,7 @@ is filled in by the feature pass.
 | 6 | Copy settings and paste on the next photo | 3 (Copy via menu or ⌘⇧C, next, Paste) | |
 | 7 | Remove a spot | 3 (Remove, tap spot, Done) | |
 | 8 | Export / share | 2 (Share, destination) | |
-| 9 | Revert | 2 ("…" menu, Revert) | |
+| 9 | Reset edit copy | 2 ("…" menu, Reset Edit Copy) | |
 | 10 | Compare before / after | 1 (press and hold, or `\`) | |
 
 ### Known gaps on iOS
@@ -96,7 +95,7 @@ is filled in by the feature pass.
   `ios-excluded-commands.txt` gives no other reason).
 - **Remove's blemish finder** requires downloadable face models, not bundled (looked up in Application Support/LightCraft/FaceModels).
 - **Guided Upright** has no guide overlay of its own yet (being added).
-- Not yet verified on a simulator: the Photos write-back / revert / permission flows and preset import
+- Not yet verified on a simulator: the new app-copy persistence/reopen flow, Photos permission flows and preset import
   (`docs/HANDOFF.md`).
 
 ## Build
@@ -111,7 +110,7 @@ xcodebuild build-for-testing -scheme LightCraft -destination 'generic/platform=i
 Gates before every commit: `cd apple/bridge && cargo test && cargo clippy --all-targets -- -D warnings`,
 `apple/scripts/check-command-ids.sh`, `apple/scripts/tool-coverage.sh`, `apple/scripts/feature-coverage.sh --check`.
 
-Demo: launch with `-LightCraftDemo` — when Photos is denied or empty, the engine's procedural demo photos are shown instead (editable, no write-back).
+Demo: launch with `-LightCraftDemo` — when Photos is denied or empty, the engine's procedural demo photos are shown instead (editable in memory, without personal Photos access).
 
 ## App icon
 

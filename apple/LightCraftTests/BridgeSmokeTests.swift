@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import LightCraftKit
+@testable import LightCraft
 import UIKit
 
 /// Smoke tests of the Rust bridge as the app sees it.
@@ -65,5 +66,58 @@ struct BridgeSmokeTests {
         _ = try reopened.execute(id: "photo.relink", paramsJson: "{\"id\":\(id),\"path\":\"\(movedFile.path)\"}")
         let rendered = try reopened.render(id: id, maxW: 64, maxH: 64, before: false, draft: true, applyCrop: true)
         #expect(rendered.width > 0 && rendered.height > 0)
+    }
+
+    @Test func editCopyKeepsSourceBytesAndRestoresSettingsAfterCacheReset() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("lc-edit-copy-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let original = root.appendingPathComponent("personal-original.jpg")
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
+            UIColor.blue.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        }
+        let sourceBytes = try #require(image.jpegData(compressionQuality: 0.9))
+        try sourceBytes.write(to: original)
+        let sourceID = "fixture/L0/001"
+        let folder = EditCopyStore.folder(for: sourceID, under: root.appendingPathComponent("LightCraft/Edits"))
+        #expect(folder != EditCopyStore.folder(for: "fixture-L0-001", under: root.appendingPathComponent("LightCraft/Edits")))
+        let copy = try EditCopyStore.copySource(original, into: folder)
+        #expect(copy != original)
+        #expect(try Data(contentsOf: copy) == sourceBytes)
+
+        let catalogPath = root.appendingPathComponent("internal-cache.lightcraftlibrary")
+        let catalog = try LibraryHandle.open(dir: catalogPath.path, seedDemo: false)
+        let imported = try catalog.execute(id: "library.import", paramsJson: "{\"paths\":[\"\(copy.path)\"],\"mode\":\"add\"}")
+        let report = try #require(JSONSerialization.jsonObject(with: Data(imported.utf8)) as? [String: Any])
+        let id = try #require((report["imported"] as? [UInt64])?.first)
+        _ = try catalog.execute(id: "library.select", paramsJson: "{\"ids\":[\(id)],\"active\":\(id)}")
+        _ = try catalog.execute(id: "develop.set", paramsJson: "{\"values\":{\"light.exposure\":1.25}}")
+        let settings = try catalog.developJson(id: id)
+        try EditCopyStore.save(EditCopyRecord(sourceID: sourceID, settingsJSON: settings, edited: true), in: folder)
+        try catalog.close()
+        try FileManager.default.removeItem(at: catalogPath)
+
+        let reopenedCopy = try EditCopyStore.copySource(original, into: folder)
+        #expect(reopenedCopy == copy)
+        let saved = try #require(EditCopyStore.record(in: folder))
+        #expect(saved.sourceID == sourceID && saved.edited)
+        let reopened = try LibraryHandle.open(dir: catalogPath.path, seedDemo: false)
+        let restoredImport = try reopened.execute(id: "library.import", paramsJson: "{\"paths\":[\"\(copy.path)\"],\"mode\":\"add\"}")
+        let restoredReport = try #require(JSONSerialization.jsonObject(with: Data(restoredImport.utf8)) as? [String: Any])
+        let restoredID = try #require((restoredReport["imported"] as? [UInt64])?.first)
+        _ = try reopened.execute(id: "library.select", paramsJson: "{\"ids\":[\(restoredID)],\"active\":\(restoredID)}")
+        let settingsObject = try #require(JSONSerialization.jsonObject(with: Data(saved.settingsJSON.utf8)) as? [String: Any])
+        let params = try JSONSerialization.data(withJSONObject: ["settings": settingsObject, "label": "Restore LightCraft edits"])
+        _ = try reopened.execute(id: "develop.merge", paramsJson: String(decoding: params, as: UTF8.self))
+        #expect(try reopened.developJson(id: restoredID) == settings)
+        #expect(try Data(contentsOf: original) == sourceBytes)
+        #expect(try Data(contentsOf: copy) == sourceBytes)
+    }
+
+    @Test @MainActor func editCopiesUseVisibleDocumentsFolder() {
+        let path = AppEnvironment.editCopiesRoot.path
+        #expect(path.hasSuffix("/Documents/Edits"))
+        #expect(!path.contains("/Application Support/"))
     }
 }

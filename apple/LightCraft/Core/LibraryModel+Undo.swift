@@ -61,5 +61,8 @@ extension LibraryModel {
         }
         undoRedoTick += 1
         refresh()
+        var affected = Set(state.selected)
+        if let active = state.active { affected.insert(active) }
+        for id in affected { _ = persistCopySettings(for: id) }
     }
 }

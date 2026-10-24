@@ -116,12 +116,12 @@ struct PhoneLibraryView: View {
                 }
                 .accessibilityIdentifier("mode.grid")
             }
-            ToolbarItemGroup(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 FullScreenButton(model: model)
-                PanelVisibilityButton(model: model)
                 UndoRedoButtons(model: model)
                 ShareButton(model: model)
                 OverflowMenu(model: model)
+                PanelVisibilityButton(model: model)
             }
         } else {
             ToolbarItem(placement: .principal) {
