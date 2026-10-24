@@ -51,6 +51,9 @@ final class AppEnvironment {
     }
 
     /// Where the original of an asset is cached (one folder per asset, the original file name inside).
+    /// Engine photos relinked to their cached original's current path in this launch.
+    var relinked: Set<UInt64> = []
+
     static func originalsFolder(for localID: String) -> URL {
         supportDirectory
             .appendingPathComponent("Originals", isDirectory: true)

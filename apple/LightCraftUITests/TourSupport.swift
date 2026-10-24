@@ -239,7 +239,9 @@ class TourTestCase: LightCraftUITestCase {
         var seen = Set<String>()
         func walk(_ node: XCUIElementSnapshot) {
             let id = node.identifier
-            if id.hasPrefix(prefix), seen.insert(id).inserted { found.append(id) }
+            // Full-screen and Guided Upright controls change the layout, not a setting: never tour them.
+            let layout = id.hasPrefix("control.fullscreen") || id.hasPrefix("control.guidedUpright")
+            if id.hasPrefix(prefix), !layout, seen.insert(id).inserted { found.append(id) }
             for child in node.children { walk(child) }
         }
         walk(root)

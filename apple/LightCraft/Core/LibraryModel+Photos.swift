@@ -61,7 +61,18 @@ extension LibraryModel {
     private func engineID(forAsset local: String) async throws -> UInt64 {
         let env = AppEnvironment.shared
         if let known = env.map.engineID(for: local), handle.photoInfo(id: known) != nil,
-           FileManager.default.fileExists(atPath: cachedFile(for: local)?.path ?? "") {
+           let file = cachedFile(for: local), FileManager.default.fileExists(atPath: file.path) {
+            // The catalog stores absolute paths, and iOS moves the app's data container on every reinstall
+            // or update: point the engine at the file's current path once per launch, or every command that
+            // reads pixels fails with "No such file or directory".
+            if !env.relinked.contains(known) {
+                let json = Self.encode(["id": known, "path": file.path]) ?? "{}"
+                let handle = self.handle
+                _ = try? await Task.detached(priority: .userInitiated) {
+                    try handle.execute(id: "photo.relink", paramsJson: json)
+                }.value
+                env.relinked.insert(known)
+            }
             return known
         }
         // First time: cache the original (RAW when there is one) and register it in place.
