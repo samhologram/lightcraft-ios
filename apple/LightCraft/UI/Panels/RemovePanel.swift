@@ -2,7 +2,7 @@ import SwiftUI
 @preconcurrency import LightCraftKit
 
 /// Remove: spot removal / healing. The list of spots of the active photo, automatic finders, and the
-/// overlay mode. Spots themselves are placed on the photo with the Remove tool.
+/// overlay mode. Manual on-photo spot placement is not yet available in the iOS canvas.
 struct RemovePanel: View {
     let model: LibraryModel
 
@@ -22,7 +22,7 @@ struct RemovePanel: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Spots").font(.headline)
                     if spots.isEmpty {
-                        Text("No spots yet. Use Find in the panel header, or place spots with the Remove tool on the photo.")
+                        Text("No spots yet. Use Find in the panel header to scan for dust spots.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

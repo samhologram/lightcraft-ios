@@ -2,7 +2,7 @@ import SwiftUI
 @preconcurrency import LightCraftKit
 
 /// iPad layout: sidebar (sources) + detail. The detail is the library grid or, for a photo, the loupe
-/// with a trailing panel switcher, an inspector column, the filmstrip and the rating / flag bar.
+/// with a trailing tabbed inspector dock, the filmstrip and the rating / flag bar.
 /// (`LibraryRootView` falls back to the iPhone layout when the window is narrower than 700 pt.)
 struct PadLibraryView: View {
     @Bindable var model: LibraryModel
@@ -28,7 +28,6 @@ struct PadLibraryView: View {
             .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
-        .onAppear { model.panelsAsSheet = false }
         .onChange(of: model.canvasOnly) { _, on in
             if on { withAnimation { columns = .detailOnly } }
         }
@@ -101,16 +100,11 @@ struct PadLibraryView: View {
     }
 
     private func loupeLayout(width: CGFloat) -> some View {
-        // A plain trailing column (not `.inspector`, which overlays the content in portrait and covered the
-        // panel switcher): the switcher, filmstrip and rating bar live in the part that shrinks, so they stay hittable.
+        // A plain trailing dock (not `.inspector`, which overlays the content in portrait).
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    LoupeView(model: model)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // Full loupe height inside the safe area; the filmstrip and rating bar sit below, never over it.
-                    if !model.canvasOnly { PanelSwitcher(model: model).frame(maxHeight: .infinity) }
-                }
+                LoupeView(model: model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .frame(maxHeight: .infinity)
                 .layoutPriority(1)
                 if !model.canvasOnly {
@@ -146,7 +140,6 @@ struct PadLibraryView: View {
         ToolbarItem(placement: .topBarLeading) {
             if model.mode == .loupe {
                 Button {
-                    model.inspectorVisible = false
                     model.mode = .grid
                 } label: {
                     Label("Library", systemImage: "square.grid.2x2")

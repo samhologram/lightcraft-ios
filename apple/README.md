@@ -31,9 +31,9 @@ Conventions taken from the references:
 3. **Revert**: "Revert to Original" in the loupe's "…" menu returns the photo to its original, like Photos' Revert.
 4. **Permissions have their own screens**: asking for access, denied (Open Settings), limited (the grid shows the
    selected photos with a "Select More Photos" banner), full.
-5. **iPad: vertical panel switcher on the trailing edge** (Edit, Crop, Remove, Masking, Red Eye, Presets, Versions,
-   Info…). Each opens an inspector column beside the photo with collapsible sections (Light, Color, Effects, Detail,
-   Optics, Geometry…).
+5. **iPad: persistent tabbed panel dock beside the photo** (Edit, Crop, Remove, Masking, Red Eye, Presets, Versions,
+   Info…). Panels stay as tabs until closed; the add menu and Window menu open them. Groups collapse, reorder and
+   scroll their selected tab into view. Panel actions live with the selected panel.
 6. **iPhone: bottom tool strip** that scrolls horizontally; the chosen panel's sliders appear in a compact sheet above
    it while the photo stays visible.
 7. **Sliders are the primary control**: label left, value right, double-tap resets to default, a drag is one undo
@@ -59,9 +59,9 @@ screen: tool strips scroll as the last resort.
 
 Status: **round 7, in progress** (contract: `docs/CONTRACT.md` §6).
 
-- **Panels like the desktop**: every panel opens from the panel switcher, the Panels menu and the Window menu; on iPad
-  the inspector's sections collapse, hide and reorder (arrangement remembered); iPhone shows sheets. Panel actions sit
-  in the panel header.
+- **Panels like the desktop**: every panel opens from persistent dock tabs or the add menu and Window menu; on iPad
+  tab groups collapse and reorder (arrangement remembered); iPhone shows sheets. Panel actions sit with the selected
+  panel. The photo has no parallel floating panel/tool rail.
 - **iPad menu bar** merges the iPadOS groups with the desktop menus in desktop order, Window and Help last.
 - **Hyper-productive**: frequent actions within 1 tap of the loupe; every desktop shortcut incl. Lightroom's single
   keys (P X U 0-5 R D G E, arrows, `\`); ⌘K palette; two-finger tap undo, three-finger tap redo; scrubbable sliders

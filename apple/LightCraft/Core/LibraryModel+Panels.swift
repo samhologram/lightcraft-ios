@@ -1,105 +1,134 @@
 import Foundation
 
-/// Panel state API: open / toggle / hide / collapse / reorder. The Window menu and keyboard shortcuts call
-/// `showPanel(_:)` and `togglePanel(_:)`; the iPad inspector column and the iPhone sheet render the result.
+/// Panel state shared by the dock, Window menu and command palette.
 extension LibraryModel {
-    /// True when the panel is on screen: a section in the iPad column, or the panel in the iPhone sheet.
     func isPanelShown(_ panel: Panel) -> Bool {
-        guard inspectorVisible else { return false }
-        return panelsAsSheet ? activePanel == panel : panelLayout.isVisible(panel)
+        inspectorVisible && activePanel == panel
     }
 
-    /// Opens the panel (the loupe, the inspector, and for the column: unhides, expands, scrolls to it).
+    /// Opening a panel selects it in its persistent tab group, or adds a new tab.
     func showPanel(_ panel: Panel) {
-        openPanel(panel)  // sets `activePanel`, whose didSet unhides / expands / reveals it in the layout
-        revealPanelInLayout(panel)
+        openPanel(panel)
     }
 
-    /// Shows the panel (a collapsed one opens), or hides it when it is already shown and open (the iPhone sheet closes instead).
     func togglePanel(_ panel: Panel) {
-        if !isPanelShown(panel) || (!panelsAsSheet && panelLayout.isCollapsed(panel)) {
-            showPanel(panel)
-        } else if panelsAsSheet {
-            inspectorVisible = false
-        } else {
-            hidePanel(panel)
-        }
+        if isPanelShown(panel) { inspectorVisible = false }
+        else { showPanel(panel) }
     }
 
-    /// Takes a panel out of the iPad column (the column closes when none is left).
     func hidePanel(_ panel: Panel) {
-        if panelsAsSheet {
-            if activePanel == panel { inspectorVisible = false }
-            return
+        guard let index = panelLayout.groupIndex(containing: panel) else { return }
+        panelLayout.groups[index].tabs.removeAll { $0 == panel }
+        if panelLayout.groups[index].tabs.isEmpty {
+            panelLayout.groups.remove(at: index)
+        } else if panelLayout.groups[index].selected == panel {
+            panelLayout.groups[index].selected = panelLayout.groups[index].tabs[0]
         }
-        panelLayout.hidden.insert(panel)
-        if activePanel == panel, let next = panelLayout.visiblePanels.first(where: { !panelLayout.isCollapsed($0) }) ?? panelLayout.visiblePanels.first {
+        if activePanel == panel, let next = panelLayout.groups.first(where: { !$0.collapsed })?.selected
+            ?? panelLayout.groups.first?.selected {
             panelRevealSuppressed = true
             activePanel = next
             panelRevealSuppressed = false
         }
-        if panelLayout.visiblePanels.isEmpty { inspectorVisible = false }
+        if panelLayout.groups.isEmpty { inspectorVisible = false }
     }
 
-    func setPanelCollapsed(_ panel: Panel, _ collapsed: Bool) {
-        if collapsed { panelLayout.collapsed.insert(panel) } else { panelLayout.collapsed.remove(panel) }
+    func selectPanelTab(_ panel: Panel) {
+        guard let index = panelLayout.groupIndex(containing: panel) else { return }
+        panelLayout.groups[index].selected = panel
+        panelLayout.groups[index].collapsed = false
+        panelRevealSuppressed = true
+        activePanel = panel
+        panelRevealSuppressed = false
+        panelRevealTarget = panel
+        panelRevealTick += 1
     }
 
-    /// Expands a collapsed panel and makes it the active one (the crop overlay, tools and shortcuts follow the active panel).
     func togglePanelCollapsed(_ panel: Panel) {
-        if panelLayout.isCollapsed(panel) {
-            setPanelCollapsed(panel, false)
-            panelRevealSuppressed = true
-            activePanel = panel
-            panelRevealSuppressed = false
-        } else {
-            setPanelCollapsed(panel, true)
-        }
+        guard let index = panelLayout.groupIndex(containing: panel) else { return }
+        panelLayout.groups[index].collapsed.toggle()
+        if !panelLayout.groups[index].collapsed { selectPanelTab(panelLayout.groups[index].selected) }
     }
 
-    func collapseAllPanels() { panelLayout.collapsed = Set(Panel.allCases) }
-    func expandAllPanels() { panelLayout.collapsed = [] }
-    func resetPanelLayout() { panelLayout = .standard }
+    func resetPanelLayout() {
+        panelLayout = .standard
+        selectPanelTab(.edit)
+    }
 
-    /// Moves a panel up (-1) or down (+1) among the shown panels.
     func movePanel(_ panel: Panel, by delta: Int) {
-        var shown = panelLayout.visiblePanels
-        guard let i = shown.firstIndex(of: panel) else { return }
-        let j = i + delta
-        guard shown.indices.contains(j) else { return }
-        shown.swapAt(i, j)
-        applyShownOrder(shown)
+        guard let index = panelLayout.groupIndex(containing: panel) else { return }
+        let target = index + delta
+        guard panelLayout.groups.indices.contains(target) else { return }
+        let moved = panelLayout.groups.remove(at: index)
+        panelLayout.groups.insert(moved, at: target)
     }
 
-    /// Drag and drop: puts `panel` where `target` is.
     func movePanel(_ panel: Panel, before target: Panel) {
-        guard panel != target else { return }
-        var shown = panelLayout.visiblePanels
-        guard let from = shown.firstIndex(of: panel), let to = shown.firstIndex(of: target) else { return }
-        shown.remove(at: from)
-        shown.insert(panel, at: to)
-        applyShownOrder(shown)
+        guard panel != target, let source = panelLayout.groupIndex(containing: panel),
+              panelLayout.groupIndex(containing: target) != nil else { return }
+        if panelLayout.groups[source].tabs.contains(target) {
+            var tabs = panelLayout.groups[source].tabs
+            tabs.removeAll { $0 == panel }
+            guard let at = tabs.firstIndex(of: target) else { return }
+            tabs.insert(panel, at: at)
+            panelLayout.groups[source].tabs = tabs
+            return
+        }
+        panelLayout.groups[source].tabs.removeAll { $0 == panel }
+        if panelLayout.groups[source].tabs.isEmpty {
+            panelLayout.groups.remove(at: source)
+        } else if panelLayout.groups[source].selected == panel {
+            panelLayout.groups[source].selected = panelLayout.groups[source].tabs[0]
+        }
+        guard let targetIndex = panelLayout.groupIndex(containing: target),
+              let tabIndex = panelLayout.groups[targetIndex].tabs.firstIndex(of: target) else { return }
+        panelLayout.groups[targetIndex].tabs.insert(panel, at: tabIndex)
+        panelLayout.groups[targetIndex].selected = panel
+        panelLayout.groups[targetIndex].collapsed = false
+        selectPanelTab(panel)
+    }
+
+    func movePanelToNewGroup(_ panel: Panel) {
+        guard let index = panelLayout.groupIndex(containing: panel), panelLayout.groups[index].tabs.count > 1 else { return }
+        panelLayout.groups[index].tabs.removeAll { $0 == panel }
+        if panelLayout.groups[index].selected == panel {
+            panelLayout.groups[index].selected = panelLayout.groups[index].tabs[0]
+        }
+        panelLayout.groups.insert(PanelDockGroup(tabs: [panel]), at: index + 1)
+        selectPanelTab(panel)
     }
 
     func canMovePanel(_ panel: Panel, by delta: Int) -> Bool {
-        let shown = panelLayout.visiblePanels
-        guard let i = shown.firstIndex(of: panel) else { return false }
-        return shown.indices.contains(i + delta)
+        guard let index = panelLayout.groupIndex(containing: panel) else { return false }
+        return panelLayout.groups.indices.contains(index + delta)
     }
 
-    /// Writes a new order of the shown panels, leaving the hidden ones at their slots.
-    private func applyShownOrder(_ shown: [Panel]) {
-        var queue = shown[...]
-        panelLayout.order = panelLayout.order.map { panelLayout.isVisible($0) ? queue.popFirst() ?? $0 : $0 }
-    }
-
-    /// Layout part of opening a panel: unhide, expand, ask the column to scroll to it.
+    /// Invoked by active-panel changes from desktop commands and shortcuts.
     func revealPanelInLayout(_ panel: Panel) {
-        var layout = panelLayout
-        layout.hidden.remove(panel)
-        layout.collapsed.remove(panel)
-        if layout != panelLayout { panelLayout = layout }
+        if let index = panelLayout.groupIndex(containing: panel) {
+            panelLayout.groups[index].selected = panel
+            panelLayout.groups[index].collapsed = false
+        } else if let index = panelLayout.groups.firstIndex(where: { group in
+            group.tabs.contains { Self.dockFamily($0) == Self.dockFamily(panel) }
+        }) {
+            panelLayout.groups[index].tabs.append(panel)
+            panelLayout.groups[index].selected = panel
+            panelLayout.groups[index].collapsed = false
+        } else {
+            panelLayout.groups.append(PanelDockGroup(tabs: [panel]))
+        }
+        inspectorVisible = true
         panelRevealTarget = panel
         panelRevealTick += 1
+    }
+
+    private static func dockFamily(_ panel: Panel) -> Int {
+        switch panel {
+        case .edit, .profiles, .presets: 0
+        case .crop, .remove: 1
+        case .masking, .redeye: 2
+        case .info, .keywords: 3
+        case .versions, .activity: 4
+        }
     }
 }

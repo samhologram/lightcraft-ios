@@ -37,9 +37,8 @@ struct PhoneLibraryView: View {
             .toolbar { toolbar }
             .toolbar(model.canvasOnly ? .hidden : .automatic, for: .navigationBar)
         }
-        .onAppear { model.panelsAsSheet = true }
         .sheet(isPresented: panelSheetShown) {
-            PanelHost(model: model, showsSwitcher: true)
+            PanelHost(model: model)
                 .presentationDetents([.fraction(Self.smallDetent), .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled)
                 .presentationDragIndicator(.visible)

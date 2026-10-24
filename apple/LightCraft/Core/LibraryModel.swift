@@ -29,8 +29,6 @@ final class LibraryModel {
     var panelLayout: PanelLayout = AppSettings.panelLayout {
         didSet { AppSettings.panelLayout = panelLayout }
     }
-    /// True in the phone layout (panels are a sheet showing one panel): set by `PhoneLibraryView` / `PadLibraryView`.
-    var panelsAsSheet = false
     /// Bumps when a panel is opened so the inspector column scrolls to it; `panelRevealTarget` says which.
     var panelRevealTick = 0
     var panelRevealTarget: Panel?
@@ -51,6 +49,8 @@ final class LibraryModel {
     /// Bumps after a preset import so the Presets panel reloads.
     var presetImportTick = 0
     var isDemoReady = false
+    /// The editor stays closed until catalog paths have been rebased after an app-container move.
+    var isCatalogReady = false
     @ObservationIgnored weak var undoManager: UndoManager?
 
     /// Set for a command that takes parameters; the UI shows a `CommandSheet`.
@@ -195,6 +195,10 @@ final class LibraryModel {
     /// Refreshes the mirror and registers undo. Use `run` unless the result is needed.
     @discardableResult
     func execute(_ id: String, _ params: [String: Any] = [:]) -> [String: Any]? {
+        guard isCatalogReady || samplesMode else {
+            lastError = "The photo library is still restoring its cached originals."
+            return nil
+        }
         guard let json = Self.encode(params) else {
             lastError = "Could not encode the parameters of \(id)."
             return nil

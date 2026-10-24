@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import LightCraftKit
+import UIKit
 
 /// Smoke tests of the Rust bridge as the app sees it.
 struct BridgeSmokeTests {
@@ -36,5 +37,33 @@ struct BridgeSmokeTests {
         try handle.close()
         let reopened = try LibraryHandle.open(dir: dir.path, seedDemo: false)
         #expect(reopened.photoInfo(id: id)?.rating == 4)
+    }
+
+    @Test func movedOriginalCanBeRelinkedBeforePixelCommands() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("lc-relink-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let old = root.appendingPathComponent("old", isDirectory: true)
+        let moved = root.appendingPathComponent("moved", isDirectory: true)
+        try FileManager.default.createDirectory(at: old, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: moved, withIntermediateDirectories: true)
+        let oldFile = old.appendingPathComponent("original.jpg")
+        let movedFile = moved.appendingPathComponent("original.jpg")
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64))
+        let image = renderer.image { context in
+            UIColor.orange.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        }
+        try #require(image.jpegData(compressionQuality: 0.9)).write(to: oldFile)
+        let catalog = root.appendingPathComponent("Catalog.lightcraftlibrary")
+        let handle = try LibraryHandle.open(dir: catalog.path, seedDemo: false)
+        let report = try handle.execute(id: "library.import", paramsJson: "{\"paths\":[\"\(oldFile.path)\"],\"mode\":\"add\"}")
+        let imported = try #require((try JSONSerialization.jsonObject(with: Data(report.utf8)) as? [String: Any])?["imported"] as? [UInt64])
+        let id = try #require(imported.first)
+        try handle.close()
+        try FileManager.default.moveItem(at: oldFile, to: movedFile)
+        let reopened = try LibraryHandle.open(dir: catalog.path, seedDemo: false)
+        _ = try reopened.execute(id: "photo.relink", paramsJson: "{\"id\":\(id),\"path\":\"\(movedFile.path)\"}")
+        let rendered = try reopened.render(id: id, maxW: 64, maxH: 64, before: false, draft: true, applyCrop: true)
+        #expect(rendered.width > 0 && rendered.height > 0)
     }
 }

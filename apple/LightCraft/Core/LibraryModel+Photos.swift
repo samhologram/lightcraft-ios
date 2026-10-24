@@ -39,6 +39,11 @@ extension LibraryModel {
     /// empty Photos library falls back to the engine's procedural samples.
     func bootstrap() async {
         if let error = AppEnvironment.shared.catalogError { lastError = error }
+        let relinkFailures = await AppEnvironment.shared.finishInitialRelink()
+        if !relinkFailures.isEmpty {
+            lastError = "Some cached originals could not be restored: \(relinkFailures.joined(separator: "; "))"
+        }
+        isCatalogReady = true
         let p = photos
         if p.status == .notDetermined { await p.requestAccess() }
         if AppSettings.isDemo && (!p.isAuthorized || p.count == 0) {
@@ -91,6 +96,10 @@ extension LibraryModel {
 
     func engineID(forAsset local: String) async throws -> UInt64 {
         let env = AppEnvironment.shared
+        let relinkFailures = await env.finishInitialRelink()
+        if !relinkFailures.isEmpty {
+            FileLog.write("startup relink failed: \(relinkFailures.joined(separator: "; "))")
+        }
         if let known = env.map.engineID(for: local), handle.photoInfo(id: known) != nil,
            let file = cachedFile(for: local), FileManager.default.fileExists(atPath: file.path) {
             // The catalog stores absolute paths, and iOS moves the app's data container on every reinstall
@@ -99,7 +108,7 @@ extension LibraryModel {
             if !env.relinked.contains(known) {
                 let json = Self.encode(["id": known, "path": file.path]) ?? "{}"
                 let handle = self.handle
-                _ = try? await Task.detached(priority: .userInitiated) {
+                _ = try await Task.detached(priority: .userInitiated) {
                     try handle.execute(id: "photo.relink", paramsJson: json)
                 }.value
                 env.relinked.insert(known)
@@ -124,7 +133,7 @@ extension LibraryModel {
             // The engine already has this photo (its cached file was missing or moved): point it at the file.
             let json = Self.encode(["id": known, "path": file.path]) ?? "{}"
             let handle = self.handle
-            _ = try? await Task.detached(priority: .userInitiated) { try handle.execute(id: "photo.relink", paramsJson: json) }.value
+            _ = try await Task.detached(priority: .userInitiated) { try handle.execute(id: "photo.relink", paramsJson: json) }.value
             env.relinked.insert(known)
             return known
         }

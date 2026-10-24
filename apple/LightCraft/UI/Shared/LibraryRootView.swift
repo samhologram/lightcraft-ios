@@ -24,7 +24,10 @@ struct LibraryRootView: View {
         GeometryReader { geo in
             let pad = horizontalSizeClass == .regular && geo.size.width >= 700
             Group {
-                if pad {
+                if !model.isCatalogReady {
+                    ProgressView("Restoring photo library…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if pad {
                     PadLibraryView(model: model)
                 } else {
                     PhoneLibraryView(model: model)

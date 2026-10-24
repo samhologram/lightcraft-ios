@@ -61,7 +61,7 @@ final class PanelTourUITests: TourTestCase {
     private func visit(_ panel: String) {
         let name = "panel.\(panel)"
         ensureLoupe()
-        closePanelIfOpen()
+        if !isPad { closePanelIfOpen() }
         let (button, cause) = reveal(name)
         guard let button else {
             record(name, reached: false, cause: cause, "panel button \(cause == "off-screen" ? "exists but cannot be tapped" : "not found")")
@@ -72,12 +72,11 @@ final class PanelTourUITests: TourTestCase {
         let stacked = isPad && verticalSwitcher
         var details: [String] = []
         if stacked {
-            // The stacked inspector: the section must exist, be expanded and be scrolled into view.
-            if let cause = revealSection(panel) {
-                record(name, reached: false, cause: cause, "tapped \(name) but \(cause) for panel.\(panel).section")
+            // The tab remains in the dock and its selected panel body must open.
+            if !element(name).waitForExistence(timeout: 8) {
+                record(name, reached: false, cause: "panel-did-not-open", "tapped tab but selected body missing")
                 shot("\(panel)-notreached")
                 _ = alive(name)
-                closePanelIfOpen()
                 return
             }
             pause(1)
@@ -97,6 +96,7 @@ final class PanelTourUITests: TourTestCase {
 
         var performed = 0
         var misses: [String] = []
+        var unavailable: [String] = []
         var slideTried = 0, slideChanged = 0
         if panel == "edit" {
             // Start from the photo's defaults so repeated runs on the same catalog never accumulate (exposure hit +5.00).
@@ -129,6 +129,15 @@ final class PanelTourUITests: TourTestCase {
             }
             let tid = target.identifier.isEmpty ? target.label : target.identifier
             if viaMenu { details.append("menu") }
+            guard target.isEnabled else {
+                if panel == "remove" && tid == "command.spot.findBlemishes" {
+                    // The YuNet face model requires separate terms acceptance and installation. This panel's
+                    // available Find Dust action is still exercised; automatic blemishes remain untested.
+                    unavailable.append("\(tid): face model not installed; NOT TESTED")
+                } else { misses.append("\(tid)(disabled)") }
+                if viaMenu && !closeActionSelector(itemID: tid) { misses.append("\(tid)(selector-stuck)") }
+                continue
+            }
             switch step.kind {
             case .tap:
                 target.tap()
@@ -166,6 +175,7 @@ final class PanelTourUITests: TourTestCase {
             if !sheet.text.isEmpty { details.append(sheet.text) }
             if let r = sheet.refused { refusals.append(r) }
             alertTexts += dismissStrays()
+            if viaMenu && !closeActionSelector(itemID: tid) { misses.append("\(tid)(selector-stuck)") }
             if !alive(name) { return }
         }
         if slideTried > 0 && slideChanged == 0 { misses.append("sliders(no-effect: no slider value changed)") }
@@ -175,19 +185,32 @@ final class PanelTourUITests: TourTestCase {
         if !alertTexts.isEmpty { details.append("ALERTS=\(alertTexts.joined(separator: " || "))") }
         if !refusals.isEmpty { details.append("REFUSED=\(refusals.joined(separator: " || "))") }
         if !misses.isEmpty { details.append("skipped: \(misses.joined(separator: ", "))") }
+        if !unavailable.isEmpty { details.append("UNAVAILABLE: \(unavailable.joined(separator: ", "))") }
+        if panel == "remove" { details.append("Manual spot placement: UNIMPLEMENTED on iOS") }
 
         // Usable state again.
-        if stacked { collapseSection(panel) }
         undoAll()
-        closePanelIfOpen()
+        if !stacked { closePanelIfOpen() }
         if !alive(name) { return }
         if performed > 0 && !(alertTexts.count + refusals.count > 0 && false) {
-            let hasNoEffect = misses.contains { $0.contains("no-effect") }
+            let missedControl = !misses.isEmpty
             let refused = !alertTexts.isEmpty || !refusals.isEmpty
-            record(name, reached: !hasNoEffect && !refused, cause: refused ? "engine-refused" : (hasNoEffect ? "no-effect" : ""), details.joined(separator: "; "))
+            let cause = refused ? "engine-refused" : (missedControl ? "control-not-reached" : (unavailable.isEmpty ? "" : "partial-model-unavailable"))
+            record(name, reached: !missedControl && !refused, cause: cause, details.joined(separator: "; "))
         } else {
             let cause = misses.contains { $0.contains("off-screen") } ? "off-screen" : "missing-identifier"
             record(name, reached: false, cause: cause, "panel opens but nothing to act on reached; " + details.joined(separator: "; "))
         }
+    }
+
+    /// Verify a header action selector is gone before navigating to the next dock tab. Native menus and
+    /// popovers otherwise intercept the next tab even while its identifier remains in the accessibility tree.
+    private func closeActionSelector(itemID: String) -> Bool {
+        for _ in 0..<2 {
+            if !element(itemID).exists { return true }
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).tap()
+            pause(0.4)
+        }
+        return !element(itemID).exists
     }
 }

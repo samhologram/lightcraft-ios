@@ -23,19 +23,10 @@ struct PanelBody: View {
     }
 }
 
-/// The body of the active panel (no chrome).
-struct ActivePanelView: View {
-    let model: LibraryModel
-
-    var body: some View { PanelBody(panel: model.activePanel, model: model) }
-}
-
 /// iPhone panel sheet: the active panel under a header with its actions, the Panels menu and a close button,
 /// plus the panel strip. (The iPad shows `InspectorColumn` instead.)
 struct PanelHost: View {
     let model: LibraryModel
-    /// Extra content shown under the title (the iPhone's panel strip).
-    var showsSwitcher = false
 
     var body: some View {
         let panel = model.activePanel
@@ -65,9 +56,7 @@ struct PanelHost: View {
             .padding(.top, 8)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("panel.\(panel.rawValue).header")
-            if showsSwitcher {
-                ToolStrip(model: model, includesTools: false)
-            }
+            ToolStrip(model: model, includesTools: false)
             PanelBody(panel: panel, model: model)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

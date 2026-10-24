@@ -46,14 +46,39 @@ final class UserStoryUITests: LightCraftUITestCase {
     @discardableResult
     private func ensureExposureSlider(_ r: StoryRecorder) -> Bool {
         let slider = element("control.light.exposure")
-        if !slider.exists { tapQuietly(element("panel.edit"), timeout: 5) }
-        var shown = slider.waitForExistence(timeout: 10)
-        if !shown, element("panel.edit.collapse").exists {
-            tapQuietly(element("panel.edit.collapse"), timeout: 1)
-            shown = slider.waitForExistence(timeout: 5)
-        }
+        if !slider.exists { openStoryPanel("edit", r) }
+        let shown = slider.waitForExistence(timeout: 10)
         storyCheck(shown, "exposure-slider-visible", r)
         return shown
+    }
+
+    /// Opens an iPad dock tab; the pinned add menu can select a tab that is offscreen or restore a closed one.
+    @discardableResult
+    private func openStoryPanel(_ name: String, _ r: StoryRecorder) -> Bool {
+        let id = "panel.\(name)"
+        if tapQuietly(element("panelTab.\(name)"), timeout: 1) {
+            r.steps.append((id, true)); r.taps += 1; return true
+        }
+        guard tapQuietly(element("control.panelMenu"), timeout: 3) else {
+            r.steps.append((id, false)); return false
+        }
+        let label = PanelTitle.title(name)
+        let done = tapQuietly(element("control.panelMenu.\(name)"), timeout: 2) || tapMenuItem(label)
+        r.steps.append((id, done))
+        if done { r.taps += 2 }
+        return done
+    }
+
+    private enum PanelTitle {
+        static func title(_ name: String) -> String {
+            switch name {
+            case "crop": "Crop & Rotate"
+            case "masking": "Masking"
+            case "activity": "History"
+            case "versions": "Versions"
+            default: name.capitalized
+            }
+        }
     }
 
     /// Value of `id`, or "" when it is not on screen (reading a missing element would fail the test).
@@ -224,7 +249,7 @@ final class UserStoryUITests: LightCraftUITestCase {
         let r = StoryRecorder()
         startLibrary()
         openStoryPhoto(r)
-        storyTap("panel.crop", r)
+        openStoryPanel("crop", r)
         pause(1)
         let aspect = storyFirstHittable(prefix: "crop.aspect.")
         storyCheck(aspect != nil, "crop-aspect-found", r)
@@ -250,10 +275,10 @@ final class UserStoryUITests: LightCraftUITestCase {
         storyCheck(marked, "edited-marker-on-photo-0", r)
         openStoryPhoto(r)
         storyCheck(exposureValue() == edited && !edited.isEmpty, "edit-restored-on-reopen", r)
-        storyTap("mode.grid", r)
-        storyPress("photo.0", r)
+        // Revert belongs to the open photo's More menu; the grid context menu has no Revert action.
         storyTap("menu.more", r)
         storyTap("photos.revert", r)
+        storyTap("mode.grid", r)
         storyCheck(waitForGone("photo.edited.0", timeout: 10), "revert-clears-edited-marker", r)
         uxAudit(story: "save-revert", r)
         finishStory("save-revert", r)
@@ -286,25 +311,17 @@ final class UserStoryUITests: LightCraftUITestCase {
         let r = StoryRecorder()
         startLibrary()
         openStoryPhoto(r)
-        storyTap("panel.masking", r)
+        openStoryPanel("masking", r)
         storyTap("panel.masking.add", r)
-        storyTapLabel("Subject", r)
-        var slider = storyFirstSlider(excludingPrefix: "control.light.")
-        var waited = 0
-        while slider == nil && waited < 15 {
-            pause(1)
-            slider = storyFirstSlider(excludingPrefix: "control.light.")
-            waited += 1
-        }
-        storyCheck(slider != nil, "masking-slider-found", r)
-        if let s = slider {
-            let before = (s.value as? String) ?? ""
-            s.adjust(toNormalizedSliderPosition: 0.8)
-            pause(1)
-            let after = (s.value as? String) ?? ""
-            note("masking slider \(s.identifier): \(before) -> \(after)")
-            storyCheck(before != after, "masking-slider-changed", r)
-        }
+        storyTap("command.mask.add.subject", r)
+        storyCheck(storyFirstHittable(prefix: "mask.") != nil, "mask-created", r)
+        let control = "control.mask.exposure"
+        storyCheck(element(control).waitForExistence(timeout: 10), "masking-slider-found", r)
+        let before = valueOf(control)
+        storyEnterValue(control, "1", r)
+        let after = valueOf(control)
+        note("masking slider \(control): \(before) -> \(after)")
+        storyCheck(storyNumber(after) == 1 && after != before, "masking-slider-changed", r)
         uxAudit(story: "masking", r)
         finishStory("masking", r)
         storyAssertAll("masking", r)
@@ -347,10 +364,10 @@ final class UserStoryUITests: LightCraftUITestCase {
         storyEnterValue("control.light.exposure", "1", r)
         storyEnterValue("control.light.contrast", "20", r)
         storyEnterValue("control.light.exposure", "2", r)
-        storyTap("panel.activity", r)
+        openStoryPanel("activity", r)
         storyCheck(element("history.0").waitForExistence(timeout: 10), "history-row-0", r)
         storyTap("panel.activity.snapshot", r)
-        storyTap("panel.versions", r)
+        openStoryPanel("versions", r)
         storyTap("command.version.create", r)
         uxAudit(story: "history-versions", r)
         finishStory("history-versions", r)

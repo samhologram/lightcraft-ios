@@ -15,6 +15,12 @@ final class AppEnvironment {
     let catalogError: String?
     let photos = PhotosLibrary()
     let map: AssetMap
+    private(set) var relinkTask: Task<RelinkResult, Never>?
+
+    struct RelinkResult: Sendable {
+        let ids: Set<UInt64>
+        let failures: [String]
+    }
 
     /// `Application Support/LightCraft`.
     static let supportDirectory: URL = {
@@ -56,7 +62,9 @@ final class AppEnvironment {
     /// path (off the main thread). Without this, the photo the catalog restores as active (and any photo not
     /// reopened) fails every pixel-reading command with "No such file or directory".
     private func relinkIfMoved(dir: URL) {
-        let marker = dir.appendingPathComponent("container-path.txt")
+        // Version the marker: older releases wrote it even when relink failed, leaving a stale catalog
+        // falsely recorded as healthy. A one-time pass repairs those existing installations.
+        let marker = dir.appendingPathComponent("container-path-v2.txt")
         let previous = try? String(contentsOf: marker, encoding: .utf8)
         guard previous != dir.path else { return }
         var jobs: [(UInt64, String)] = []
@@ -66,16 +74,39 @@ final class AppEnvironment {
                 jobs.append((id, file.path))
             }
         }
-        relinked.formUnion(jobs.map(\.0))
         let handle = catalog
-        Task.detached(priority: .utility) {
+        relinkTask = Task.detached(priority: .utility) {
+            var ids = Set<UInt64>()
+            var failures: [String] = []
             for (id, path) in jobs {
                 let json = "{\"id\":\(id),\"path\":\(Self.jsonString(path))}"
-                _ = try? handle.execute(id: "photo.relink", paramsJson: json)
+                do {
+                    _ = try handle.execute(id: "photo.relink", paramsJson: json)
+                    ids.insert(id)
+                } catch {
+                    failures.append("Photo \(id): \(error.localizedDescription)")
+                }
             }
-            try? handle.persist()
-            try? dir.path.write(to: marker, atomically: true, encoding: .utf8)
+            if failures.isEmpty {
+                do {
+                    try handle.persist()
+                    try dir.path.write(to: marker, atomically: true, encoding: .utf8)
+                } catch {
+                    failures.append("Saving the repaired photo cache: \(error.localizedDescription)")
+                }
+            }
+            return RelinkResult(ids: ids, failures: failures)
         }
+    }
+
+    /// The initial catalog can contain an active photo with an absolute path from the prior app container.
+    /// Finish every available relink before the UI can render or run a pixel-reading command.
+    func finishInitialRelink() async -> [String] {
+        guard let relinkTask else { return [] }
+        let result = await relinkTask.value
+        relinked.formUnion(result.ids)
+        self.relinkTask = nil
+        return result.failures
     }
 
     nonisolated private static func jsonString(_ s: String) -> String {

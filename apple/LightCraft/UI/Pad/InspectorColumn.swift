@@ -1,201 +1,243 @@
 import SwiftUI
 @preconcurrency import LightCraftKit
 
-/// iPad inspector column: the shown panels stacked as sections (Photoshop / Lightroom style). Each section has
-/// a header with a disclosure toggle, the panel's own actions and a menu (Move Up / Down, Hide); headers can
-/// also be dragged to reorder. The "Panels" menu in the column header shows and hides each panel. The
-/// arrangement lives in `LibraryModel.panelLayout` and persists in `AppSettings`.
+/// iPad inspector dock: PhotoCraft-style stacked groups of persistent panel tabs.
 struct InspectorColumn: View {
     let model: LibraryModel
 
-    private static let headerHeight: CGFloat = 46
-    private static let minBodyHeight: CGFloat = 260
+    private static let stripHeight: CGFloat = 46
 
     var body: some View {
         VStack(spacing: 0) {
-            columnHeader
-                .contentShape(Rectangle())
-            Divider()
-            if model.panelLayout.visiblePanels.isEmpty {
+            dockHeader
+                .background(.bar)
+                .zIndex(1)
+            if model.panelLayout.groups.isEmpty {
                 ContentUnavailableView {
-                    Label("No Panels", systemImage: "square.stack.3d.up.slash")
+                    Label("No Panels", systemImage: "rectangle.stack")
                 } description: {
-                    Text("Choose panels to show with the Panels menu.")
+                    Text("Add a panel with the plus button.")
                 } actions: {
                     Button("Show Edit") { model.showPanel(.edit) }
-                        .buttonStyle(.glassProminent)
-                        .accessibilityIdentifier("control.panels.showEdit")
+                        .accessibilityIdentifier("control.panelMenu.showEdit")
                 }
             } else {
-                sections
+                GeometryReader { geometry in
+                    ScrollViewReader { reader in
+                        ScrollView(.vertical) {
+                            VStack(spacing: 8) {
+                                ForEach(Array(model.panelLayout.groups.enumerated()), id: \.element.id) { index, group in
+                                    DockGroupView(model: model, group: group, index: index,
+                                                  revealTick: model.panelRevealTick,
+                                                  contentHeight: max(260, geometry.size.height - CGFloat(model.panelLayout.groups.count) * Self.stripHeight - 70))
+                                        .id(group.id)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 10)
+                        }
+                        .scrollIndicators(.hidden)
+                        .scrollBounceBehavior(.basedOnSize)
+                        .onChange(of: model.panelRevealTick, initial: true) { _, _ in
+                            guard let target = model.panelRevealTarget,
+                                  let group = model.panelLayout.groups.first(where: { $0.tabs.contains(target) }) else { return }
+                            withAnimation(.smooth) { reader.scrollTo(group.id, anchor: .top) }
+                        }
+                    }
+                }
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("inspector")
     }
 
-    private var columnHeader: some View {
+    private var dockHeader: some View {
         HStack(spacing: 8) {
             Text("Panels")
                 .font(.headline)
                 .accessibilityIdentifier("panelTitle")
             Spacer()
-            PanelsMenu(model: model)
+            Menu {
+                ForEach(Panel.allCases) { panel in
+                    Button {
+                        model.showPanel(panel)
+                    } label: {
+                        Label(panel.title, systemImage: model.panelLayout.isVisible(panel) ? "checkmark" : panel.symbol)
+                    }
+                    .accessibilityIdentifier("control.panelMenu.\(panel.rawValue)")
+                }
+                Divider()
+                Button("Reset Panels") { model.resetPanelLayout() }
+                    .accessibilityIdentifier("control.panelMenu.reset")
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title3)
+                    .frame(width: 38, height: 38)
+                    .contentShape(Circle())
+            }
+            .menuIndicator(.hidden)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("Add Panel")
+            .accessibilityIdentifier("control.panelMenu")
+
             Button {
                 model.inspectorVisible = false
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .symbolRenderingMode(.hierarchical)
                     .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                    .frame(width: 38, height: 38)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .zIndex(1)
-            .accessibilityLabel("Close panel")
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Close panel dock")
             .accessibilityIdentifier("panel.close")
         }
         .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 2)
-        .frame(minHeight: 52)
-        // Keep the header (and the close button) below the navigation bar's hit area.
-        .safeAreaPadding(.top, 4)
-        .zIndex(2)
-    }
-
-    private var sections: some View {
-        GeometryReader { geo in
-            let shown = model.panelLayout.visiblePanels
-            let open = shown.filter { !model.panelLayout.isCollapsed($0) }.count
-            // Open panels share the column; with many open, each keeps a usable height and the column scrolls.
-            let bodyHeight = max(Self.minBodyHeight, (geo.size.height - Self.headerHeight * CGFloat(shown.count)) / CGFloat(max(open, 1)))
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    // Headers are pinned: whatever part of the column is scrolled into view, the visible
-                    // section's header (collapse, actions, menu) stays at the top and hittable.
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        ForEach(shown) { panel in
-                            Section {
-                                PanelSectionBody(model: model, panel: panel, bodyHeight: bodyHeight)
-                            } header: {
-                                PanelSectionHeader(model: model, panel: panel, headerHeight: Self.headerHeight)
-                                    .id(panel)
-                            }
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-                .onChange(of: model.panelRevealTick) { _, _ in scrollToReveal(proxy) }
-                // The column may be created by the very tap that opens a panel: its tick change then happened before it existed.
-                .onAppear { scrollToReveal(proxy) }
-            }
-        }
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 }
 
-extension InspectorColumn {
-    /// Scrolls the revealed panel's section to the top. Waits a beat so the expansion (new body heights) has been laid out.
-    @MainActor fileprivate func scrollToReveal(_ proxy: ScrollViewProxy) {
-        guard let target = model.panelRevealTarget else { return }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            guard model.panelLayout.visiblePanels.contains(target) else { return }
-            withAnimation(.snappy) { proxy.scrollTo(target, anchor: .top) }
-        }
-    }
-}
-
-/// The body of one stacked panel (empty while collapsed), followed by a divider.
-private struct PanelSectionBody: View {
+private struct DockGroupView: View {
     let model: LibraryModel
-    let panel: Panel
-    let bodyHeight: CGFloat
+    let group: PanelDockGroup
+    let index: Int
+    let revealTick: Int
+    let contentHeight: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
-            if !model.panelLayout.isCollapsed(panel) {
-                PanelBody(panel: panel, model: model)
-                    .frame(height: bodyHeight)
-                    .clipped()
-            }
-            Divider()
-        }
-        .dropDestination(for: String.self) { items, _ in
-            guard let raw = items.first, let dragged = Panel(rawValue: raw) else { return false }
-            model.movePanel(dragged, before: panel)
-            return true
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("panel.\(panel.rawValue).section")
-    }
-}
-
-/// The pinned header of one stacked panel: disclosure, title, actions, menu.
-private struct PanelSectionHeader: View {
-    let model: LibraryModel
-    let panel: Panel
-    let headerHeight: CGFloat
-
-    var body: some View { header(collapsed: model.panelLayout.isCollapsed(panel)) }
-
-    private func header(collapsed: Bool) -> some View {
-        HStack(spacing: 4) {
-            Button {
-                withAnimation(.snappy) { model.togglePanelCollapsed(panel) }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(collapsed ? 0 : 90))
-                        .frame(width: 14)
-                    Label(panel.uiTitle, systemImage: panel.uiSymbol)
+            strip
+            if !group.collapsed {
+                Divider()
+                HStack {
+                    Text(group.selected.title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Spacer(minLength: 0)
+                        .accessibilityIdentifier("panel.\(group.selected.rawValue).header")
+                    Spacer(minLength: 4)
+                    PanelHeaderActions(model: model, panel: group.selected)
                 }
-                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .frame(minHeight: 42)
+                .background(.bar)
+                .accessibilityElement(children: .contain)
+                PanelBody(panel: group.selected, model: model)
+                    .id(group.selected)
+                    .frame(height: contentHeight)
+                    .clipped()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("panel.\(group.selected.rawValue)")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(panel.uiTitle)
-            .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
-            .accessibilityIdentifier("panel.\(panel.rawValue).collapse")
-            if !collapsed {
-                PanelHeaderActions(model: model, panel: panel)
+        }
+        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("panelGroup.\(index)")
+    }
+
+    private var strip: some View {
+        HStack(spacing: 4) {
+            ScrollViewReader { reader in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 2) {
+                        ForEach(group.tabs) { panel in
+                            tab(panel)
+                                .id(panel)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .onChange(of: group.selected, initial: true) { _, selected in
+                    withAnimation(.smooth) { reader.scrollTo(selected, anchor: .center) }
+                }
+                .onChange(of: revealTick) { _, _ in
+                    guard model.panelRevealTarget == group.selected else { return }
+                    withAnimation(.smooth) { reader.scrollTo(group.selected, anchor: .center) }
+                }
             }
-            Menu {
-                Button { model.movePanel(panel, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
-                    .disabled(!model.canMovePanel(panel, by: -1))
-                    .accessibilityIdentifier("panel.\(panel.rawValue).moveUp")
-                Button { model.movePanel(panel, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
-                    .disabled(!model.canMovePanel(panel, by: 1))
-                    .accessibilityIdentifier("panel.\(panel.rawValue).moveDown")
-                Divider()
-                Button(role: .destructive) { model.hidePanel(panel) } label: { Label("Hide Panel", systemImage: "eye.slash") }
-                    .accessibilityIdentifier("panel.\(panel.rawValue).hide")
+            Button {
+                withAnimation(.smooth) { model.togglePanelCollapsed(group.selected) }
             } label: {
-                Label("Panel Options", systemImage: "ellipsis")
-                    .labelStyle(.iconOnly)
-                    .frame(width: 34, height: 34)
+                Image(systemName: "chevron.down")
+                    .rotationEffect(.degrees(group.collapsed ? -90 : 0))
+                    .frame(width: 34, height: 38)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Panel Options")
-            .accessibilityIdentifier("panel.\(panel.rawValue).menu")
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(group.collapsed ? "Expand" : "Collapse")
+            .accessibilityIdentifier("panelCollapse.\(index)")
+            Menu {
+                Button(group.collapsed ? "Expand" : "Collapse") {
+                    model.togglePanelCollapsed(group.selected)
+                }
+                Button("Move Up") { model.movePanel(group.selected, by: -1) }
+                    .disabled(index == 0)
+                Button("Move Down") { model.movePanel(group.selected, by: 1) }
+                    .disabled(index == model.panelLayout.groups.count - 1)
+                Divider()
+                Button(role: .destructive) {
+                    for panel in group.tabs { model.hidePanel(panel) }
+                } label: { Label("Close Group", systemImage: "xmark") }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 34, height: 38)
+                    .contentShape(Rectangle())
+            }
+            .menuIndicator(.hidden)
+            .accessibilityLabel("Group Options")
+            .accessibilityIdentifier("panelGroup.\(index).menu")
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 8)
-        .frame(height: headerHeight)
-        .background(Color(uiColor: .secondarySystemBackground))
-        .overlay(alignment: .bottom) { Divider() }
+        .padding(.trailing, 4)
+        .frame(height: 46)
         .dropDestination(for: String.self) { items, _ in
-            guard let raw = items.first, let dragged = Panel(rawValue: raw) else { return false }
-            model.movePanel(dragged, before: panel)
+            guard let raw = items.first, let panel = Panel(rawValue: raw) else { return false }
+            model.movePanel(panel, before: group.selected)
             return true
         }
+    }
+
+    private func tab(_ panel: Panel) -> some View {
+        let selected = panel == group.selected
+        return Button {
+            model.selectPanelTab(panel)
+        } label: {
+            Group {
+                if selected { Label(panel.title, systemImage: panel.symbol) }
+                else { Text(panel.title) }
+            }
+            .font(.subheadline.weight(selected ? .semibold : .regular))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .glassEffect(selected ? .regular.interactive() : .identity, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect()
+        .accessibilityIdentifier("panelTab.\(panel.rawValue)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .draggable(panel.rawValue)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("panel.\(panel.rawValue).header")
+        .dropDestination(for: String.self) { items, _ in
+            guard let raw = items.first, let dropped = Panel(rawValue: raw) else { return false }
+            model.movePanel(dropped, before: panel)
+            return true
+        }
+        .contextMenu {
+            if group.tabs.count > 1 {
+                Button("Move to New Group") { model.movePanelToNewGroup(panel) }
+            }
+            Button(role: .destructive) {
+                model.hidePanel(panel)
+            } label: { Label("Close", systemImage: "xmark") }
+        }
     }
 }

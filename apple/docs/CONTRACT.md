@@ -306,14 +306,14 @@ Status of every item below: **round 7, in progress**. Three agents implement in 
 intended contract (COOKBOOK §0b, §4). Anything not yet true in the code is a bug against this section, not a change to it.
 
 ### 6.1 Panel system (round 7, in progress)
-- Every desktop panel is reachable from the panel switcher (iPad column / iPhone strip), the "Panels" menu
-  (`control.panels`, one item per panel `control.panels.<id>`) and the Window menu. An entry that opens nothing is a bug.
-- iPad inspector: panel sections are collapsible, hideable and reorderable; the arrangement persists per app
+- Every desktop panel is reachable from the persistent dock tabs/add menu on iPad (see §6.6), the panel selector
+  on iPhone and the Window menu. An entry that opens nothing is a bug.
+- iPad inspector: tab groups are collapsible, hideable and reorderable; the arrangement persists per app
   (UserDefaults). iPhone shows each panel as a sheet with detents that keep the photo visible.
 - Panel-owned actions live in the panel header (e.g. Presets "Import", Masking "New mask", Versions "Snapshot"), not in
   the global toolbar.
-- Identifiers: `panel.<id>` (switcher entry and panel root), `panel.<id>.header`, `panel.<id>.collapse`,
-  `control.panels` (the Panels menu button), `control.panels.<id>` (its items). Existing `panel.close` / `panelTitle` stay.
+- Identifiers: `panel.<id>` (panel root), `panel.<id>.header`, `panelTab.<id>` (persistent iPad tab),
+  `control.panelMenu` (dock add button), `control.panelMenu.<id>` (its items). Existing `panel.close` / `panelTitle` stay.
 
 ### 6.2 iPad menu bar (round 7, in progress)
 Merge, not replace: the iPadOS system groups (app, File basics, Edit undo/clipboard, Format, View, Window, Help) are kept
@@ -340,3 +340,34 @@ then they appear in the grid. Drag and drop and paste work on the grid. Entry po
 ### 6.5 Native decoders (round 7, in progress)
 PhotoKit / ImageIO produce thumbnails, previews and decode non-RAW formats (HEIC to 16-bit TIFF via ImageIO: done). The
 engine's RAW decoder is kept for originals (non-destructive develop re-reads them); gaps are noted for upstream.
+
+### 6.6 Persistent panel dock (round 7 UX revision)
+- iPad uses a trailing inspector dock inspired by PhotoCraft's stacked tab groups. The dock header has one add-panel
+  menu; a panel opened from that menu or the Window menu remains a visible tab until the user closes it. Selecting a
+  tab expands its group and scrolls the selected tab and group into view. Groups can collapse, reorder and accept
+  dragged tabs; the arrangement persists across library/loupe navigation. The selected panel's actions stay with its
+  panel header/content.
+- The old floating vertical panel/tool switcher beside the photo and duplicate in-canvas Panels button are removed.
+  Tool commands remain reachable through their owning panel, the menu bar and command palette. The system Window
+  menu retains every panel entry, and full-screen canvas keeps its dedicated exit control.
+- iPhone continues to use a panel sheet, with panel selection in the sheet rather than a floating rail.
+- Accessibility: `control.panelMenu` is the dock add menu; `panelTab.<id>` identifies each persistent tab;
+  `panel.<id>` identifies the selected panel body; `panelGroup.<index>` and `panelCollapse.<index>` identify group
+  controls. Keep command ids on panel actions and menu entries. Tours must open every panel through an actual UI
+  route and fail on NOT-REACHED.
+- Masking's header Add Mask control (`panel.masking.add`) opens an anchored selector with identifiable choices
+  (`command.mask.add.<kind>`). Selecting a kind dismisses the selector, runs `mask.add`, and shows the new mask and its
+  effect sliders in the still-selected Masking tab; command errors surface as an alert.
+- On launch after iOS moves the app data container, the catalog's cached-original paths must finish rebasing before
+  the editor renders or runs pixel-reading commands. Only successful `photo.relink` calls count as repaired; a failed
+  relink stays retryable and surfaces an error. Opening a mapped asset also waits for this initial pass and propagates
+  its own relink errors instead of marking a stale path as healthy.
+- Remove-panel navigation and capability coverage are distinct. The panel tour dispatches the available Find Dust
+  action and checks for engine errors; zero detected dust spots on a clean sample is a valid result. Find Blemishes
+  requires the separately accepted and installed YuNet face model, so a disabled item is reported as UNAVAILABLE /
+  NOT TESTED and never counted as an action. Manual spot placement on the iOS canvas is not implemented; the panel
+  must not promise that gesture. A retouch-outcome test needs a known dust fixture or a verified manual command route.
+- Remove's single panel-header Find button (`panel.remove.find`) opens an anchored selector with stable action IDs
+  `command.spot.findDust` and `command.spot.findBlemishes`. Selecting an enabled action dismisses
+  the selector before dispatch; an unavailable Find Blemishes row displays the missing-model reason and remains
+  disabled. The selector must dismiss normally when tapped outside so it cannot block dock navigation.

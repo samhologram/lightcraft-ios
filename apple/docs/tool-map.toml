@@ -2,42 +2,42 @@
 # Checked by scripts/tool-coverage.sh: every desktop panel.* / tool.* id needs an entry with `ios` or `excluded`.
 
 [panel.edit]
-ios = "Inspector > Edit (iPad), tool strip > Edit (iPhone)"
+ios = "Persistent dock tab > Edit (iPad), tool strip > Edit (iPhone)"
 [panel.profiles]
-ios = "Inspector > Profiles (iPad), tool strip > Profiles (iPhone)"
+ios = "Persistent dock tab > Profiles (iPad), tool strip > Profiles (iPhone)"
 [panel.crop]
-ios = "Inspector > Crop (iPad), tool strip > Crop (iPhone); crop overlay on the loupe"
+ios = "Persistent dock tab > Crop (iPad), tool strip > Crop (iPhone); crop overlay on the loupe"
 [panel.remove]
-ios = "Inspector > Remove (iPad), tool strip > Remove (iPhone)"
+ios = "Persistent dock tab > Remove (iPad), tool strip > Remove (iPhone)"
 [panel.masking]
-ios = "Inspector > Masking (iPad), tool strip > Masking (iPhone)"
+ios = "Persistent dock tab > Masking (iPad), tool strip > Masking (iPhone)"
 [panel.redeye]
-ios = "Inspector > Red Eye (iPad), tool strip > Red Eye (iPhone)"
+ios = "Persistent dock tab > Red Eye (iPad), tool strip > Red Eye (iPhone)"
 [panel.presets]
-ios = "Inspector > Presets (iPad), tool strip > Presets (iPhone)"
+ios = "Persistent dock tab > Presets (iPad), tool strip > Presets (iPhone)"
 [panel.info]
-ios = "Inspector > Info (iPad), sheet (iPhone)"
+ios = "Persistent dock tab > Info (iPad), sheet (iPhone)"
 [panel.keywords]
-ios = "Inspector > Keywords (iPad), sheet (iPhone)"
+ios = "Persistent dock tab > Keywords (iPad), sheet (iPhone)"
 [panel.versions]
-ios = "Inspector > Versions (iPad), sheet (iPhone)"
+ios = "Persistent dock tab > Versions (iPad), sheet (iPhone)"
 [panel.activity]
-ios = "Inspector > History / Activity (iPad), sheet (iPhone)"
+ios = "Persistent dock tab > History / Activity (iPad), sheet (iPhone)"
 [panel.close]
 ios = "Inspector close button / sheet dismiss"
 
 [tool.brush]
-ios = "Masking tool strip > Brush; Apple Pencil on the loupe"
+ios = "Masking panel or command palette > Brush; Apple Pencil on the loupe"
 [tool.linear]
-ios = "Masking tool strip > Linear Gradient"
+ios = "Masking panel or command palette > Linear Gradient"
 [tool.radial]
-ios = "Masking tool strip > Radial Gradient"
+ios = "Masking panel or command palette > Radial Gradient"
 [tool.wbPicker]
 ios = "Edit panel > White Balance eyedropper (tap the loupe)"
 [tool.guidedUpright]
 ios = "Crop panel > Guided Upright (draw guides on the loupe)"
 [tool.none]
-ios = "Tool strip: tapping the active tool again, or Done"
+ios = "Command palette or Done"
 [tool.done]
 ios = "Done button on the options bar"
 [tool.keywordPainter]

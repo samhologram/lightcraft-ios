@@ -1,43 +1,23 @@
 import SwiftUI
 @preconcurrency import LightCraftKit
 
-/// The "Panels" menu (`control.panels`): iPad shows / hides each panel in the inspector column
-/// (`control.panels.<id>`, checkmarked) with layout shortcuts; iPhone opens the chosen panel in the sheet.
+/// The iPhone panel sheet's chooser; iPad uses the persistent inspector dock's Add menu.
 struct PanelsMenu: View {
     let model: LibraryModel
 
     var body: some View {
         Menu {
             ForEach(Panel.allCases) { panel in
-                if model.panelsAsSheet {
-                    Button {
-                        model.showPanel(panel)
-                    } label: {
-                        if model.isPanelShown(panel) {
-                            Label(panel.uiTitle, systemImage: "checkmark")
-                        } else {
-                            Label(panel.uiTitle, systemImage: panel.uiSymbol)
-                        }
-                    }
-                    .accessibilityIdentifier("control.panels.\(panel.rawValue)")
-                } else {
-                    Toggle(isOn: Binding(
-                        get: { model.isPanelShown(panel) },
-                        set: { on in if on { model.showPanel(panel) } else { model.hidePanel(panel) } }
-                    )) {
+                Button {
+                    model.showPanel(panel)
+                } label: {
+                    if model.isPanelShown(panel) {
+                        Label(panel.uiTitle, systemImage: "checkmark")
+                    } else {
                         Label(panel.uiTitle, systemImage: panel.uiSymbol)
                     }
-                    .accessibilityIdentifier("control.panels.\(panel.rawValue)")
                 }
-            }
-            if !model.panelsAsSheet {
-                Divider()
-                Button { model.expandAllPanels() } label: { Label("Expand All", systemImage: "chevron.down") }
-                    .accessibilityIdentifier("control.panels.expandAll")
-                Button { model.collapseAllPanels() } label: { Label("Collapse All", systemImage: "chevron.right") }
-                    .accessibilityIdentifier("control.panels.collapseAll")
-                Button { model.resetPanelLayout() } label: { Label("Reset Panel Layout", systemImage: "arrow.counterclockwise") }
-                    .accessibilityIdentifier("control.panels.reset")
+                .accessibilityIdentifier("control.panels.\(panel.rawValue)")
             }
         } label: {
             Label("Panels", systemImage: "square.stack.3d.up")
@@ -57,6 +37,8 @@ struct PanelHeaderActions: View {
     let panel: Panel
 
     @State private var confirmClear = false
+    @State private var addMaskOpen = false
+    @State private var findOpen = false
     @AppStorage("redeye.pet") private var redEyePet = false
 
     var body: some View {
@@ -68,43 +50,79 @@ struct PanelHeaderActions: View {
             case .crop:
                 icon("Reset Crop", "arrow.counterclockwise", id: "crop.reset", role: .destructive) { model.run("crop.reset") }
             case .remove:
-                Menu {
-                    Button { model.run("spot.findDust") } label: { Label("Find Dust Spots", systemImage: "sparkles") }
-                        .disabled(!model.isEnabled("spot.findDust"))
-                        .accessibilityIdentifier("command.spot.findDust")
-                    Button { model.run("spot.findBlemishes") } label: { Label("Find Blemishes", systemImage: "face.smiling") }
-                        .disabled(!model.isEnabled("spot.findBlemishes"))
-                        .accessibilityIdentifier("command.spot.findBlemishes")
-                    Divider()
-                    Button { model.runUI("view.toolOverlay") } label: { Label("Cycle Tool Overlay", systemImage: "eye") }
-                        .accessibilityIdentifier("view.toolOverlay")
+                Button {
+                    findOpen = true
                 } label: {
                     glyph("Find", "sparkles")
                 }
                 .disabled(model.activePhoto == nil)
                 .accessibilityLabel("Find")
                 .accessibilityIdentifier("panel.remove.find")
+                .popover(isPresented: $findOpen, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            findOpen = false
+                            model.run("spot.findDust")
+                        } label: {
+                            Label("Find Dust Spots", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!model.isEnabled("spot.findDust"))
+                        .accessibilityIdentifier("command.spot.findDust")
+                        Button {
+                            findOpen = false
+                            model.run("spot.findBlemishes")
+                        } label: {
+                            Label("Find Blemishes", systemImage: "face.smiling")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!model.isEnabled("spot.findBlemishes"))
+                        .accessibilityIdentifier("command.spot.findBlemishes")
+                        if !model.isEnabled("spot.findBlemishes") {
+                            Text(model.handle.disabledReason(id: "spot.findBlemishes") ?? "Face model unavailable")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("remove.findBlemishes.reason")
+                        }
+                    }
+                    .padding(16)
+                    .frame(minWidth: 240, maxWidth: 300, alignment: .leading)
+                    .presentationCompactAdaptation(.popover)
+                }
             case .masking:
-                Menu {
-                    Section("Tools") {
-                        toolItem("tool.brush", "Brush", "paintbrush")
-                        toolItem("tool.linear", "Linear Gradient", "rectangle.split.1x2")
-                        toolItem("tool.radial", "Radial Gradient", "circle.dashed")
-                    }
-                    Section("Select") {
-                        kindItem("subject", "Subject", "person.crop.square")
-                        kindItem("sky", "Sky", "cloud.sun")
-                        kindItem("background", "Background", "rectangle.dashed")
-                    }
-                    Divider()
-                    Button { model.runUI("view.maskOverlay") } label: { Label("Show Overlay", systemImage: "eye") }
-                        .accessibilityIdentifier("view.maskOverlay")
+                Button {
+                    addMaskOpen = true
                 } label: {
                     glyph("Add Mask", "plus")
                 }
                 .disabled(model.activePhoto == nil)
                 .accessibilityLabel("Add Mask")
                 .accessibilityIdentifier("panel.masking.add")
+                .popover(isPresented: $addMaskOpen, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Tools").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        toolItem("tool.brush", "Brush", "paintbrush")
+                        toolItem("tool.linear", "Linear Gradient", "rectangle.split.1x2")
+                        toolItem("tool.radial", "Radial Gradient", "circle.dashed")
+                        Divider()
+                        Text("Select").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        kindItem("subject", "Subject", "person.crop.square")
+                        kindItem("sky", "Sky", "cloud.sun")
+                        kindItem("background", "Background", "rectangle.dashed")
+                        Divider()
+                        Button { addMaskOpen = false; model.runUI("view.maskOverlay") } label: {
+                            Label("Show Overlay", systemImage: "eye")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("view.maskOverlay")
+                    }
+                    .padding(16)
+                    .frame(minWidth: 220, alignment: .leading)
+                    .presentationCompactAdaptation(.popover)
+                }
             case .redeye:
                 icon("Add Correction", "plus", id: "redeye.add") {
                     model.run("redeye.add", ["center": [0.5, 0.5], "rx": 0.03, "ry": 0.03, "pet": redEyePet])
@@ -158,12 +176,18 @@ struct PanelHeaderActions: View {
     }
 
     private func toolItem(_ id: String, _ title: String, _ symbol: String) -> some View {
-        Button { model.runUI(id) } label: { Label(title, systemImage: symbol) }
+        Button { addMaskOpen = false; model.runUI(id) } label: {
+            Label(title, systemImage: symbol).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+            .buttonStyle(.plain)
             .accessibilityIdentifier(id)
     }
 
     private func kindItem(_ kind: String, _ title: String, _ symbol: String) -> some View {
-        Button { model.run("mask.add", ["kind": kind]) } label: { Label(title, systemImage: symbol) }
+        Button { addMaskOpen = false; model.run("mask.add", ["kind": kind]) } label: {
+            Label(title, systemImage: symbol).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+            .buttonStyle(.plain)
             .accessibilityIdentifier("command.mask.add.\(kind)")
     }
 }

@@ -285,7 +285,6 @@ class TourTestCase: LightCraftUITestCase {
         "command.mask.add.": ["Subject", "Sky", "Background"],
         "command.spot.findDust": ["Find Dust Spots"],
         "command.spot.findBlemishes": ["Find Blemishes"],
-        "view.toolOverlay": ["Cycle Tool Overlay"],
         "view.maskOverlay": ["Show Overlay"],
         "tool.brush": ["Brush"], "tool.linear": ["Linear Gradient"], "tool.radial": ["Radial Gradient"],
     ]
@@ -319,21 +318,27 @@ class TourTestCase: LightCraftUITestCase {
         return nil
     }
 
-    /// True when the panel/tool switcher is the iPad's vertical column (otherwise the iPhone's strip).
-    var verticalSwitcher: Bool { element("panelSwitcher").exists }
+    /// True when the iPad's persistent tab dock is present (otherwise the iPhone's strip/sheet).
+    var verticalSwitcher: Bool { element("inspector").exists }
 
     /// A `panel.<id>` / `tool.<id>` button that can be tapped, scrolling the switcher when needed.
     /// The second value is the cause class when it cannot be reached.
     func reveal(_ identifier: String) -> (XCUIElement?, String) {
-        if let e = hit(identifier) { return (e, "") }
-        // The switcher moves what does not fit into a "More" menu (`panelSwitcher.more` > `panelSwitcher.more.<id>`).
-        if let more = hit("panelSwitcher.more") {
-            more.tap()
-            pause(0.5)
-            if let item = hit("panelSwitcher.more.\(identifier)") { return (item, "") }
-            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)).tap()
-            pause(0.3)
+        if identifier.hasPrefix("panel."), verticalSwitcher {
+            let panel = String(identifier.dropFirst("panel.".count))
+            if let tab = hit("panelTab.\(panel)") { return (tab, "") }
+            if let add = hit("control.panelMenu") {
+                add.tap()
+                pause(0.5)
+                if let item = hit("control.panelMenu.\(panel)") { return (item, "") }
+                if let title = Self.panelTitles[panel] {
+                    let item = app.buttons[title].firstMatch
+                    if canTap(item) { return (item, "") }
+                }
+            }
+            return (nil, "panel-tab-or-add-menu-missing")
         }
+        if let e = hit(identifier) { return (e, "") }
         guard element(identifier).exists else { return (nil, "missing-identifier") }
         let order = Self.panelIDs.map { "panel.\($0)" } + Self.toolIDs.map { "tool.\($0)" }
         guard let index = order.firstIndex(of: identifier) else { return (nil, "off-screen") }
@@ -367,7 +372,7 @@ class TourTestCase: LightCraftUITestCase {
     /// accessibility tree (it is a `.contain` element under a customizable toolbar), so the other things that only
     /// exist in the editor count too: the loupe toolbar items, the inspector column, the panel switcher, `mode.grid`
     /// (the Library button, shown only while a photo is open), the Full Screen button, the Exposure slider.
-    static let loupeSignals = ["loupe", "inspector", "panelSwitcher", "toolbar.beforeAfter", "toolbar.zoom", "mode.grid",
+    static let loupeSignals = ["loupe", "inspector", "toolbar.beforeAfter", "toolbar.zoom", "mode.grid",
                                "control.fullscreen", "control.light.exposure", "panelTitle"]
 
     /// The first loupe signal on screen, or nil. A plain existence check.

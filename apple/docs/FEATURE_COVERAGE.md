@@ -9,7 +9,7 @@ engine catalog command), `mapped` = `docs/tool-map.toml`, `excluded` = cannot wo
 | Group | Total | swift+menu | swift | menu | mapped | excluded | not reached |
 |---|---|---|---|---|---|---|---|
 | Engine commands with a menu path | 73 | 27 | 0 | 46 | 0 | 0 | 0 |
-| Desktop UI commands | 186 | 19 | 3 | 89 | 19 | 18 | 38 |
+| Desktop UI commands | 186 | 19 | 2 | 89 | 19 | 18 | 39 |
 
 Engine commands in total: 370; without a menu path (palette only): 297.
 
@@ -176,18 +176,18 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `merge.hdrPanoramaLast` | HDR Panorama with Last Settings | Photo > Photo Merge | menu | generated menu / command palette |
 | `merge.panoramaLast` | Panorama with Last Settings | Photo > Photo Merge | menu | generated menu / command palette |
 | `modelSetup.cancel` | Cancel Pending Photo Action |  | not reached | UI-only desktop command with no iOS equivalent yet |
-| `panel.activity` | History | Window | mapped | Inspector > History / Activity (iPad), sheet (iPhone) |
+| `panel.activity` | History | Window | mapped | Persistent dock tab > History / Activity (iPad), sheet (iPhone) |
 | `panel.close` | Close Panel |  | mapped | Inspector close button / sheet dismiss |
-| `panel.crop` | Crop & Rotate | Window | mapped | Inspector > Crop (iPad), tool strip > Crop (iPhone); crop overlay on the loupe |
-| `panel.edit` | Edit | Window | mapped | Inspector > Edit (iPad), tool strip > Edit (iPhone) |
-| `panel.info` | Info | Window | mapped | Inspector > Info (iPad), sheet (iPhone) |
-| `panel.keywords` | Keywords | Window | mapped | Inspector > Keywords (iPad), sheet (iPhone) |
-| `panel.masking` | Masking | Window | mapped | Inspector > Masking (iPad), tool strip > Masking (iPhone) |
-| `panel.presets` | Presets | Window | mapped | Inspector > Presets (iPad), tool strip > Presets (iPhone) |
-| `panel.profiles` | Profile Browser | Window | mapped | Inspector > Profiles (iPad), tool strip > Profiles (iPhone) |
-| `panel.redeye` | Red Eye | Window | mapped | Inspector > Red Eye (iPad), tool strip > Red Eye (iPhone) |
-| `panel.remove` | Remove | Window | mapped | Inspector > Remove (iPad), tool strip > Remove (iPhone) |
-| `panel.versions` | Versions | Window | mapped | Inspector > Versions (iPad), sheet (iPhone) |
+| `panel.crop` | Crop & Rotate | Window | mapped | Persistent dock tab > Crop (iPad), tool strip > Crop (iPhone); crop overlay on the loupe |
+| `panel.edit` | Edit | Window | mapped | Persistent dock tab > Edit (iPad), tool strip > Edit (iPhone) |
+| `panel.info` | Info | Window | mapped | Persistent dock tab > Info (iPad), sheet (iPhone) |
+| `panel.keywords` | Keywords | Window | mapped | Persistent dock tab > Keywords (iPad), sheet (iPhone) |
+| `panel.masking` | Masking | Window | mapped | Persistent dock tab > Masking (iPad), tool strip > Masking (iPhone) |
+| `panel.presets` | Presets | Window | mapped | Persistent dock tab > Presets (iPad), tool strip > Presets (iPhone) |
+| `panel.profiles` | Profile Browser | Window | mapped | Persistent dock tab > Profiles (iPad), tool strip > Profiles (iPhone) |
+| `panel.redeye` | Red Eye | Window | mapped | Persistent dock tab > Red Eye (iPad), tool strip > Red Eye (iPhone) |
+| `panel.remove` | Remove | Window | mapped | Persistent dock tab > Remove (iPad), tool strip > Remove (iPhone) |
+| `panel.versions` | Versions | Window | mapped | Persistent dock tab > Versions (iPad), sheet (iPhone) |
 | `photo.editInExternal` | Edit in Other Editor | Photo > Edit In | menu | generated menu / command palette |
 | `photo.editInPhotoCraft` | Edit in PhotoCraft | Photo > Edit In | menu | generated menu / command palette |
 | `photo.locate` | Locate Missing File… |  | not reached | UI-only desktop command with no iOS equivalent yet |
@@ -204,13 +204,13 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `slideshow.next` | Next Slide |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `slideshow.previous` | Previous Slide |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `slideshow.togglePause` | Pause / Resume Slideshow |  | not reached | UI-only desktop command with no iOS equivalent yet |
-| `tool.brush` | Brush | Window > Tools | mapped | Masking tool strip > Brush; Apple Pencil on the loupe |
+| `tool.brush` | Brush | Window > Tools | mapped | Masking panel or command palette > Brush; Apple Pencil on the loupe |
 | `tool.done` | Done |  | mapped | Done button on the options bar |
 | `tool.guidedUpright` | Guided Upright | Window > Tools | mapped | Crop panel > Guided Upright (draw guides on the loupe) |
 | `tool.keywordPainter` | Keyword Painter |  | excluded | Keyword Painter paints keywords by clicking photos with a held mouse tool; use multi-select + Keywords panel on touch |
-| `tool.linear` | Linear Gradient | Window > Tools | mapped | Masking tool strip > Linear Gradient |
-| `tool.none` | No Tool |  | mapped | Tool strip: tapping the active tool again, or Done |
-| `tool.radial` | Radial Gradient | Window > Tools | mapped | Masking tool strip > Radial Gradient |
+| `tool.linear` | Linear Gradient | Window > Tools | mapped | Masking panel or command palette > Linear Gradient |
+| `tool.none` | No Tool |  | mapped | Command palette or Done |
+| `tool.radial` | Radial Gradient | Window > Tools | mapped | Masking panel or command palette > Radial Gradient |
 | `tool.wbPicker` | White Balance Selector | Window > Tools | mapped | Edit panel > White Balance eyedropper (tap the loupe) |
 | `ui.dock` | Arrange Panel |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `ui.dock.reset` | Reset Panel Layout | Window | menu | generated menu / command palette |
@@ -271,7 +271,7 @@ Engine commands in total: 370; without a menu path (palette only): 297.
 | `view.theme` | Theme |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `view.thumbSizeDown` | Decrease Grid Thumbnail Size | View | swift+menu | Swift references it; also in the generated menus |
 | `view.thumbSizeUp` | Increase Grid Thumbnail Size | View | swift+menu | Swift references it; also in the generated menus |
-| `view.toolOverlay` | Cycle Tool Overlay |  | swift | referenced by Swift |
+| `view.toolOverlay` | Cycle Tool Overlay |  | not reached | UI-only desktop command with no iOS equivalent yet |
 | `view.viewOptions` | View Options… | View | menu | generated menu / command palette |
 | `view.visualizeHdr` | Visualize HDR | View | menu | generated menu / command palette |
 | `view.visualizeSpots` | Visualize Spots | View | menu | generated menu / command palette |

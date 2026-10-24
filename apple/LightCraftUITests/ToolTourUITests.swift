@@ -47,12 +47,21 @@ final class ToolTourUITests: TourTestCase {
         closePanelIfOpen()
         undoAll(max: 10)
         let (button, revealCause) = reveal(name)
-        guard let button else {
+        if let button {
+            button.tap()
+        } else if isPad {
+            // The dock replaces the floating tool rail; tools stay available in the command palette.
+            let status = runPaletteCommand(name)
+            guard status == "ran" else {
+                record(name, reached: false, cause: status, "tool palette command \(status)")
+                shot("\(tool)-notreached")
+                return
+            }
+        } else {
             record(name, reached: false, cause: revealCause, "tool button \(revealCause == "off-screen" ? "exists but cannot be tapped" : "not found")")
             shot("\(tool)-notreached")
             return
         }
-        button.tap()
         pause(1.5)
         var details: [String] = []
         let overlayID = tool == "guidedUpright" ? "tool.guidedUpright.overlay" : "toolOverlay.\(tool)"

@@ -20,6 +20,7 @@ extension LibraryModel {
     }
 
     func isEnabled(_ id: String) -> Bool {
+        if !isCatalogReady && !samplesMode { return false }
         let catalog = CommandCatalog.shared
         switch id {
         case "edit.undo": return state.canUndo
