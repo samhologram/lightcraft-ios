@@ -245,6 +245,7 @@ extension LibraryModel {
         }
         if ProcessInfo.processInfo.arguments.contains("-LightCraftMemLog") {
             memoryLog.notice("memory log on: every 30 s; resident \(Self.residentBytes() >> 20) MB")
+            FileLog.write("memory log on; resident \(Self.residentBytes() >> 20) MB")
             memoryLogTask = Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(30))
@@ -263,12 +264,14 @@ extension LibraryModel {
         photos.trimCaches()
         handle.trimMemory()
         memoryLog.notice("purge (\(reason, privacy: .public)); resident \(Self.residentBytes() >> 20) MB")
+        FileLog.write("purge (\(reason)); resident \(Self.residentBytes() >> 20) MB")
     }
 
     func logMemory() {
         let thumbs = thumbStats.summary
         let e = handle.memoryStats()
         memoryLog.notice("resident=\(Self.residentBytes() >> 20)MB thumbCache=\(thumbs.entries) entries \(thumbs.bytes >> 20)MB visible=\(self.visible.count) gens=\(self.renderGenerations.count) engine: budget=\(e.budget) cacheBudget=\(e.cacheBudget) cacheBytes=\(e.cacheBytes) renderedEntries=\(e.renderedEntries) renderedBytes=\(e.renderedBytes) thumbSrc=\(e.thumbSourceBytes) previewSrc=\(e.previewSourceBytes) fullSrc=\(e.fullSourceBytes) work=\(e.workBytes)/\(e.workLimit) gpuAlloc=\(e.gpuAllocated) gpuPooled=\(e.gpuPooled)")
+        FileLog.write("resident=\(Self.residentBytes() >> 20)MB thumbCache=\(thumbs.bytes >> 20)MB engine cacheBytes=\(e.cacheBytes) budget=\(e.budget)")
     }
 
     nonisolated static func residentBytes() -> UInt64 {

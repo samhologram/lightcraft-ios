@@ -4,6 +4,30 @@ import os
 
 private let openLog = Logger(subsystem: "ca.hologram.lightcraft", category: "photos")
 
+/// Diagnostics also appended to `Library/Caches/lightcraft.log` in the app container, so test runs can
+/// pull them with `simctl get_app_container` when `log stream` captures nothing. Capped at 1 MB.
+nonisolated enum FileLog {
+    private static let lock = NSLock()
+    private static let url: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("lightcraft.log")
+
+    static func write(_ line: String) {
+        guard let url else { return }
+        lock.lock(); defer { lock.unlock() }
+        let text = "\(Date().ISO8601Format()) \(line)\n"
+        if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int), size > 1 << 20 {
+            try? FileManager.default.removeItem(at: url)
+        }
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(text.utf8))
+        } else {
+            try? Data(text.utf8).write(to: url)
+        }
+    }
+}
+
 /// The Photos library as the library: opening an asset registers (once) its cached original in the engine
 /// catalog, edits run on that engine photo, and leaving the loupe writes changed settings back to Photos.
 extension LibraryModel {
@@ -41,8 +65,10 @@ extension LibraryModel {
         isOpening = true
         defer { isOpening = false }
         commitEdits()
+        FileLog.write("open \(local) at \(index)")
         do {
             let id = try await engineID(forAsset: local)
+            FileLog.write("opened \(local) as engine photo \(id)")
             select(id)
             openLocalID = local
             openIndex = index
@@ -50,6 +76,7 @@ extension LibraryModel {
             mode = .loupe
         } catch {
             openLog.error("open failed for \(local, privacy: .public): \(String(describing: error), privacy: .public)")
+            FileLog.write("open failed for \(local): \(error)")
             lastError = error.localizedDescription
         }
     }

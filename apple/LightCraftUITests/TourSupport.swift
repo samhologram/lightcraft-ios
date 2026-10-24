@@ -424,10 +424,8 @@ class TourTestCase: LightCraftUITestCase {
                     text += " filled-text"
                 }
             }
-            if app.keyboards.count > 0 {
-                let done = app.keyboards.buttons["return"].firstMatch
-                if done.exists { done.tap() } else { app.keyboards.buttons["Return"].firstMatch.tap() }
-            }
+            // Never tap keyboard keys: XCUITest reports Return as hittable yet fails to scroll it into view
+            // (kAXErrorFailure). The sheet's Run button works with the keyboard up.
             pause(0.4)
         }
         var refused: String?
