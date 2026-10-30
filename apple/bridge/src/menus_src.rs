@@ -1,11 +1,11 @@
 //! Parsers for the desktop UI's command table and menu layout, read from upstream source text
-//! (`crates/ui-egui/src/menus.rs` and `menubar.rs`) embedded with `include_str!`. No egui dependency.
+//! (`crates/ui-egui/src/menus.rs` and `menus/menubar.rs`) embedded with `include_str!`. No egui dependency.
 //! Robust by construction: every access is bounds-checked and malformed input yields fewer entries.
 
 use crate::{MenuSection, UiCommandInfo};
 
 const MENUS_RS: &str = include_str!("../../../crates/ui-egui/src/menus.rs");
-const MENUBAR_RS: &str = include_str!("../../../crates/ui-egui/src/menubar.rs");
+const MENUBAR_RS: &str = include_str!("../../../crates/ui-egui/src/menus/menubar.rs");
 
 #[derive(Debug, PartialEq)]
 enum Tok {
